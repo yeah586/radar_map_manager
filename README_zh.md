@@ -70,11 +70,12 @@ RMM 兼容所有能够接入 Home Assistant 的毫米波雷达（包括 1D/2D/3D
 ## 📦 安装方法
 
 ### 方式一：HACS 自动安装 (推荐)
-1.  打开 HACS -> Integrations。
-2.  点击右上角菜单 -> **Custom repositories**。
-3.  填入本仓库地址 `https://github.com/Moe8383/radar_map_manager`，类别选择 **Integration**。
-4.  搜索 "Radar Map Manager" 并点击安装。
-5.  重启 Home Assistant。
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Moe8383&repository=radar_map_manager&category=integration)
+1. 在 Home Assistant 左侧边栏打开 **HACS**。
+2. 进入 **集成 (Integrations)**，点击右下角的 **浏览并下载存储库 (Explore & Download Repositories)**。
+3. 在搜索框中输入 **"Radar Map Manager"**。
+4. 点击进入详情页，并在右下角点击 **下载 (Download)**。
+5. 重启 Home Assistant。
 
 ### 方式二：手动安装
 1.  下载本仓库的 `custom_components/radar_map_manager` 文件夹。
