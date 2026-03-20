@@ -10,13 +10,17 @@ from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers import discovery
+from homeassistant.config_entries import ConfigEntry
 
 from .coordinator import RadarCoordinator
 from .processor import RadarProcessor
 from .const import DOMAIN, CONF_RADARS
 
 _LOGGER = logging.getLogger(__name__)
+
+
+PLATFORMS = ["sensor", "binary_sensor"]
+
 
 CONFIG_SCHEMA = vol.Schema({
     DOMAIN: vol.Schema({
@@ -49,31 +53,36 @@ UPDATE_GLOBAL_CONFIG_SCHEMA = vol.Schema({
     vol.Optional("fused_color"): cv.string,
 })
 
+
 async def async_setup(hass: HomeAssistant, config: dict):
     hass.data.setdefault(DOMAIN, {})
+    return True
 
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
+    hass.data.setdefault(DOMAIN, {})
+
+    
     www_dir = hass.config.path("custom_components/radar_map_manager/www")
     if os.path.isdir(www_dir):
         await hass.http.async_register_static_paths([
             StaticPathConfig("/radar_map_manager", www_dir, cache_headers=False)
         ])
-        
         add_extra_js_url(hass, "/radar_map_manager/radar-map-card.js?v=1.0.0")
 
+    
     coordinator = RadarCoordinator(hass)
     await coordinator.async_load()
-    
     processor = RadarProcessor(hass, coordinator)
 
     hass.data[DOMAIN]["coordinator"] = coordinator
     hass.data[DOMAIN]["processor"] = processor
     hass.data[DOMAIN]["timer_remove"] = None
 
-    for platform in ["sensor", "binary_sensor"]:
-        hass.async_create_task(
-            discovery.async_load_platform(hass, platform, DOMAIN, {}, config)
-        )
+    
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    
     def start_processing_loop(interval_sec):
         if hass.data[DOMAIN]["timer_remove"]:
             hass.data[DOMAIN]["timer_remove"]()
@@ -81,7 +90,6 @@ async def async_setup(hass: HomeAssistant, config: dict):
             _LOGGER.debug("RMM: Stopped previous update timer.")
 
         safe_interval = max(0.1, float(interval_sec))
-        
         _LOGGER.info(f"RMM: Starting processor loop with interval: {safe_interval}s")
         hass.data[DOMAIN]["timer_remove"] = async_track_time_interval(
             hass, 
@@ -89,34 +97,22 @@ async def async_setup(hass: HomeAssistant, config: dict):
             timedelta(seconds=safe_interval)
         )
 
+    
     async def handle_add_radar(call: ServiceCall):
-        radar_name = call.data["radar_name"]
-        map_group = call.data.get("map_group", "default")
-        await coordinator.async_add_radar(radar_name, map_group)
+        await coordinator.async_add_radar(call.data["radar_name"], call.data.get("map_group", "default"))
         await processor.update(force=True)
 
     async def handle_remove_radar(call: ServiceCall):
-        radar_name = call.data["radar_name"]
-        await coordinator.async_remove_radar(radar_name)
+        await coordinator.async_remove_radar(call.data["radar_name"])
         await processor.update(force=True)
 
     async def handle_update_radar_zone(call: ServiceCall):
-        radar_name = call.data.get("radar_name")
-        zone_type = call.data["zone_type"]
-        points = call.data["points"]
-        delay = call.data.get("delay", 0)
-        name = call.data.get("name", "New Zone")
-        map_group = call.data.get("map_group")
-        
-        zone_data = {"points": points, "delay": delay, "name": name}
-        await coordinator.async_update_zone(radar_name, zone_type, zone_data, map_group)
+        zone_data = {"points": call.data["points"], "delay": call.data.get("delay", 0), "name": call.data.get("name", "New Zone")}
+        await coordinator.async_update_zone(call.data.get("radar_name"), call.data["zone_type"], zone_data, call.data.get("map_group"))
         await processor.update(force=True)
 
     async def handle_update_radar_layout(call: ServiceCall):
-        radar_name = call.data["radar_name"]
-        layout = call.data["layout"]
-        map_group = call.data.get("map_group")
-        await coordinator.async_update_layout(radar_name, layout, map_group)
+        await coordinator.async_update_layout(call.data["radar_name"], call.data["layout"], call.data.get("map_group"))
         await processor.update(force=True)
 
     async def handle_generate_config(call: ServiceCall):
@@ -130,8 +126,7 @@ async def async_setup(hass: HomeAssistant, config: dict):
 
     async def handle_import_config(call: ServiceCall):
         try:
-            json_str = call.data["config_json"]
-            new_data = json.loads(json_str)
+            new_data = json.loads(call.data["config_json"])
             if "radars" not in new_data or "maps" not in new_data:
                 raise ValueError("Invalid JSON format")
             
@@ -143,6 +138,7 @@ async def async_setup(hass: HomeAssistant, config: dict):
         except Exception as e:
             _LOGGER.error(f"RMM: Import failed: {e}")
 
+    
     hass.services.async_register(DOMAIN, "add_radar", handle_add_radar, schema=ADD_RADAR_SCHEMA)
     hass.services.async_register(DOMAIN, "remove_radar", handle_remove_radar, schema=REMOVE_RADAR_SCHEMA)
     hass.services.async_register(DOMAIN, "update_radar_zone", handle_update_radar_zone, schema=UPDATE_ZONE_SCHEMA)
@@ -151,6 +147,7 @@ async def async_setup(hass: HomeAssistant, config: dict):
     hass.services.async_register(DOMAIN, "update_global_config", handle_update_global_config, schema=UPDATE_GLOBAL_CONFIG_SCHEMA)
     hass.services.async_register(DOMAIN, "import_config", handle_import_config)
 
+    
     await processor.async_start()
     
     async def initial_startup(event):
@@ -159,5 +156,13 @@ async def async_setup(hass: HomeAssistant, config: dict):
         start_processing_loop(interval)
 
     hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, initial_startup)
-
     return True
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
+    if hass.data[DOMAIN].get("timer_remove"):
+        hass.data[DOMAIN]["timer_remove"]()
+    
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unload_ok:
+        hass.data.pop(DOMAIN)
+    return unload_ok
