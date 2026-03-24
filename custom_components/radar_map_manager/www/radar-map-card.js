@@ -415,3 +415,11 @@ class RadarMapCardNative extends HTMLElement {
 }
 
 customElements.define('radar-map-card', RadarMapCardNative);
+window.customCards = window.customCards || [];
+window.customCards.push({
+    type: "radar-map-card",
+    name: "Radar Map Manager",
+    description: "Visual Multi-Radar Presence Tracking & Zone Management.",
+    preview: true,
+});
+
