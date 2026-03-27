@@ -64,6 +64,9 @@ RMM 兼容所有能够接入 Home Assistant 的毫米波雷达（包括 1D/2D/3D
 3.  **雷达目标数 [可选]**：
     * 格式：`sensor.[radar_name]_presence_target_count`
     * *例如：`sensor.rd_ld2450_presence_target_count`*
+4.  **目标坐标单位**:
+    * 支持单位包括：`m` `cm` `mm`
+    * 强烈建议设置单位，如果没有设置单位，默认用`m`作为单位
 
 ---
 
