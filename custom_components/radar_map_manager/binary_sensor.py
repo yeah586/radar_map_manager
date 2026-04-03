@@ -193,7 +193,7 @@ class RadarZoneSensor(CoordinatorEntity, BinarySensorEntity):
                 j = i
             except: return False
         return inside
-
+    
 async def async_setup_entry(hass, config_entry, async_add_entities):
     if DOMAIN not in hass.data or "coordinator" not in hass.data[DOMAIN]: return
     coordinator = hass.data[DOMAIN]["coordinator"]

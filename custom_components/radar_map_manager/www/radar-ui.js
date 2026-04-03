@@ -184,11 +184,15 @@ export class RadarUI {
                         <button id="btn-mode-settings">Set</button>
                     </div>
                     <div id="layout-tools" class="content">
-                        <div id="layout-header-row" class="row">
+						<div id="layout-header-row" class="row">
                             <select id="sel-radar" style="flex:1; width:auto; min-width:0;"></select>
                             <button id="btn-add-radar" class="success" title="Add Radar" style="width:24px;">+</button>
                             <button id="btn-del-radar" class="danger" title="Del Radar" style="width:24px;">-</button>
-                            <button id="btn-edit-fov" style="flex:0 0 33%; margin-left:2px;">Monitor</button>
+                            <select id="sel-radar-zone-type" style="flex:0 0 32%; margin-left:2px; height:22px; background:#222; color:white; border:1px solid #444;">
+                                <option value="monitor_zones">Monitor</option>
+                                <option value="hardware_zones">HW Zone</option>
+                            </select>
+                            <button id="btn-edit-fov" class="warning" style="width:24px; margin-left:2px;" title="Draw Region">✏️</button>
                         </div>
                         <div id="layout-inner-params">
                             <div class="row">
@@ -252,6 +256,7 @@ export class RadarUI {
                             <button id="btn-cancel-edit">CANCEL</button>
                         </div>
                         <div class="actions">
+                            <button id="btn-hw-mode" style="display:none; border:none; color:white; font-weight:bold;">HW BLOCK</button>
                             <button id="btn-del-zone" class="danger" disabled>DEL</button>
                             <button id="btn-clear" class="danger">CLR ALL</button>
                         </div>
@@ -353,17 +358,25 @@ export class RadarUI {
                 if(innerParams) innerParams.style.display = 'none'; 
                 show(zPanel); 
                 if (rowSelectType) rowSelectType.style.display = 'none';
-                if (selType) { selType.innerHTML = `<option value="monitor_zones">M</option>`; selType.value = 'monitor_zones'; }
-                if(btnFov) { btnFov.innerText = "Done"; btnFov.style.background = "#2E7D32"; btnFov.style.color = "white"; }
+                if (selType) { 
+                    const currentTypeStr = state.radar_zone_type === 'hardware_zones' ? '🟪 HW Block' : '🟨 Monitor';
+                    selType.innerHTML = `<option value="${state.radar_zone_type || 'monitor_zones'}">${currentTypeStr}</option>`; 
+                    selType.value = state.radar_zone_type || 'monitor_zones'; 
+                }
+                if(btnFov) { btnFov.innerText = "✔"; btnFov.className = "success"; }
                 if(selRadar) selRadar.disabled = true;
                 if(btnAdd) btnAdd.disabled = true;
                 if(btnDel) btnDel.disabled = true;
+                const selRadarZoneType = this.root.getElementById('sel-radar-zone-type');
+                if(selRadarZoneType) selRadarZoneType.disabled = true; 
             } else {
                 if(innerParams) innerParams.style.display = 'block';
-                if(btnFov) { btnFov.innerText = "Monitor"; btnFov.style.background = ""; btnFov.style.color = ""; }
+                if(btnFov) { btnFov.innerText = "✏️"; btnFov.className = "warning"; }
                 if(selRadar) selRadar.disabled = false;
                 if(btnAdd) btnAdd.disabled = false;
                 if(btnDel) btnDel.disabled = false;
+                const selRadarZoneType = this.root.getElementById('sel-radar-zone-type');
+                if(selRadarZoneType) selRadarZoneType.disabled = false;
             }
 
         } else if (state.editMode === 'zone') {
@@ -402,7 +415,9 @@ export class RadarUI {
         const getList = () => {
             if (state.editMode === 'layout') {
                 if (!state.radar || !state.data[state.radar]) return [];
-                return state.data[state.radar]['monitor_zones'] || [];
+                // ✨ 同样修复这里
+                const type = state.radar_zone_type || 'monitor_zones';
+                return state.data[state.radar][type] || [];
             } else {
                 if (!state.data.global_zones) return [];
                 return state.data.global_zones[state.type] || [];
@@ -491,7 +506,10 @@ export class RadarUI {
                 this.root.querySelectorAll('#layout-tools input').forEach(el => el.disabled = true);
             } else {
                 btnFreeze.innerText = "Freeze"; btnFreeze.style.background = "#F57F17"; btnFreeze.style.color = "black";
-                this.root.querySelectorAll('#layout-tools input').forEach(el => el.disabled = false);
+                this.root.querySelectorAll('#layout-tools input').forEach(el => {
+                    if (el.id === 'layout-ceiling') return; 
+                    el.disabled = false;
+                });
             }
         }
         
@@ -503,6 +521,30 @@ export class RadarUI {
             } else { 
                 inDelay.disabled = false; 
                 inDelay.style.opacity = 1.0; 
+            }
+        }
+        const btnHwMode = this.root.getElementById('btn-hw-mode');
+        if (btnHwMode) {
+            if (state.editMode === 'layout' && state.fov_edit_mode && state.radar_zone_type === 'hardware_zones') {
+                btnHwMode.style.display = 'inline-flex'; 
+                
+                let hwMode = 2;
+                if (state.layoutChanges && state.layoutChanges.hw_zone_mode !== undefined) {
+                    hwMode = parseInt(state.layoutChanges.hw_zone_mode);
+                } else {
+                    const radarLayout = (state.data[state.radar] && state.data[state.radar].layout) || {};
+                    hwMode = radarLayout.hw_zone_mode !== undefined ? parseInt(radarLayout.hw_zone_mode) : 2;
+                }
+                
+                if (hwMode === 1) {
+                    btnHwMode.innerText = 'HW DETECT';
+                    btnHwMode.style.background = '#00BFFF'; 
+                } else {
+                    btnHwMode.innerText = 'HW BLOCK';
+                    btnHwMode.style.background = '#9C27B0'; 
+                }
+            } else {
+                btnHwMode.style.display = 'none';
             }
         }
     }
@@ -598,12 +640,52 @@ export class RadarUI {
         else if (state.data[rName]?.layout?.enable_3d !== undefined) d3 = state.data[rName].layout.enable_3d;
         setVal('layout-3d', d3);
 
-        let ceil = false;
-        if (state.layoutChanges?.ceiling_mount !== undefined) ceil = state.layoutChanges.ceiling_mount;
-        else if (state.data[rName]?.layout?.ceiling_mount !== undefined) ceil = state.data[rName].layout.ceiling_mount;
-        setVal('layout-ceiling', ceil);
+        const cbCeiling = this.root.getElementById('layout-ceiling');
+        if (cbCeiling) {
+            const caps = (state.data[rName] && state.data[rName].capabilities) || {};
+            const supported = caps.supported_mounts || ['wall', 'ceiling'];
+
+            if (!supported.includes('ceiling')) {
+                if (cbCeiling.checked !== false) cbCeiling.checked = false;
+                if (!cbCeiling.disabled) cbCeiling.disabled = true;
+                cbCeiling.title = "硬件限制：该雷达型号不支持顶装模式";
+                if (cbCeiling.parentElement) cbCeiling.parentElement.style.opacity = "0.5";
+                cbCeiling.style.cursor = "not-allowed";
+                
+                if (state.layoutChanges && state.layoutChanges.ceiling_mount !== undefined) delete state.layoutChanges.ceiling_mount;
+            } else {
+                if (cbCeiling.disabled) cbCeiling.disabled = false;
+                cbCeiling.title = "勾选后切换为顶装模式";
+                if (cbCeiling.parentElement) cbCeiling.parentElement.style.opacity = "1";
+                cbCeiling.style.cursor = "pointer";
+
+                let finalChecked = false;
+                
+                if (state.data[rName]?.layout?.ceiling_mount !== undefined) {
+                    finalChecked = state.data[rName].layout.ceiling_mount; 
+                }
+                
+                if (caps.current_mount !== undefined) {
+                    finalChecked = (caps.current_mount === 'ceiling'); 
+                }
+
+                const entId = `select.${rName.toLowerCase()}_install_mode`;
+                if (hass && hass.states[entId]) {
+                    finalChecked = (hass.states[entId].state.toLowerCase() === 'ceiling');
+                }
+                
+                if (state.layoutChanges && state.layoutChanges.ceiling_mount !== undefined) {
+                    finalChecked = state.layoutChanges.ceiling_mount; 
+                }
+
+                if (cbCeiling.checked !== finalChecked) {
+                    cbCeiling.checked = finalChecked;
+                }
+            }
+        }
         
         const grpHeight = this.root.getElementById('group-height');
+		
         if (grpHeight) grpHeight.style.display = d3 ? 'flex' : 'none';
         setVal('layout-h', getVal('mount_height'));
     }

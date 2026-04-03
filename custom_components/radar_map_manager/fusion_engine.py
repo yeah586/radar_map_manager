@@ -1,4 +1,4 @@
-"""Fusion Engine for Radar Map Manager (V1.0.0 Release)."""
+"""Fusion Engine for Radar Map Manager (V1.1.0 Release)."""
 import logging
 import math
 
@@ -38,9 +38,18 @@ class FusionEngine:
             origin_x = float(layout.get('origin_x', 50))
             origin_y = float(layout.get('origin_y', 50))
 
-            for i in range(1, 4):
+            r_conf['targets'] = []
+
+            for i in range(1, 6): 
                 raw_point = self._get_radar_point(r_name, i)
                 if not raw_point: continue
+
+                r_conf['targets'].append({
+                    "i": i,
+                    "x": raw_point['x'],
+                    "y": raw_point['y'],
+                    "is_1d": raw_point.get('is_1d', False)
+                })
 
                 if not raw_point.get('is_1d') and abs(raw_point['x']) < 100 and abs(raw_point['y']) < 100:
                     continue
@@ -98,6 +107,14 @@ class FusionEngine:
         if not self.hass: return None
         lower = r_name.lower()
         
+        from .const import DOMAIN
+        live_data = self.hass.data.get(DOMAIN, {}).get("live_data", {}).get(lower)
+        if live_data is not None:
+            if i <= len(live_data):
+                target = live_data[i-1]
+                return {'x': float(target['x']), 'y': float(target['y']), 'z': 0, 'is_1d': False}
+            return None 
+            
         state_x = self.hass.states.get(f"sensor.{lower}_target_{i}_x")
         state_y = self.hass.states.get(f"sensor.{lower}_target_{i}_y")
         
@@ -106,11 +123,9 @@ class FusionEngine:
                 try:
                     x = float(state_x.state)
                     y = float(state_y.state)
-                    unit_attr = state_y.attributes.get('unit_of_measurement')
-                    unit = str(unit_attr).lower() if unit_attr else 'm'
-                    if unit == 'cm': x *= 10; y *= 10
-                    elif unit == 'mm': pass
-                    else: x *= 1000; y *= 1000
+                    unit = state_y.attributes.get('unit_of_measurement', 'm')
+                    if unit == 'm': x *= 1000; y *= 1000
+                    elif unit == 'cm': x *= 10; y *= 10
                     return {'x': x, 'y': y, 'z': 0, 'is_1d': False}
                 except ValueError: pass
 
@@ -122,10 +137,9 @@ class FusionEngine:
                     dist = float(state_dist.state)
                     if dist < 0.1: return None
                     
-                    unit_attr = state_dist.attributes.get('unit_of_measurement')
-                    unit = str(unit_attr).lower() if unit_attr else 'm'
-                    if unit == 'cm': dist_mm = dist * 10
-                    elif unit == 'mm': dist_mm = dist
+                    unit = state_dist.attributes.get('unit_of_measurement', 'm')
+                    if unit == 'm': dist_mm = dist * 1000
+                    elif unit == 'cm': dist_mm = dist * 10
                     else: dist_mm = dist * 1000
                     
                     return {'x': 0, 'y': dist_mm, 'z': 0, 'is_1d': True} 
@@ -246,7 +260,7 @@ class FusionEngine:
         safe_map = map_id.lower().replace(" ", "_")
         entity_id = f"sensor.rmm_{safe_map}_master"
         attrs = {
-            "map_group": map_id, "count": len(targets), "targets": targets,
+            "map_group": map_id, "count": len(targets),
             "friendly_name": f"RMM {map_id} Master", "icon": "mdi:radar"
         }
         self.hass.states.async_set(entity_id, str(len(targets)), attrs)

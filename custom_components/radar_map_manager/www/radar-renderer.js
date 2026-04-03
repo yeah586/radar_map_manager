@@ -30,6 +30,26 @@ export class RadarRenderer {
             if (typeof val !== 'number' || isNaN(val)) return def;
             return val;
         };
+        
+        let isCeiling = getVal('ceiling_mount', false);
+        const radarData = (state.data && state.data[rName]) || {};
+        if (radarData.capabilities && radarData.capabilities.current_mount !== undefined) {
+            const hasTempChange = state.editMode === 'layout' && rName === state.radar && state.layoutChanges && state.layoutChanges['ceiling_mount'] !== undefined;
+            if (!hasTempChange) {
+                isCeiling = (radarData.capabilities.current_mount === 'ceiling');
+                
+                if (hass) {
+                    const entId = `select.${rName.toLowerCase()}_install_mode`;
+                    if (hass.states[entId]) {
+                        isCeiling = (hass.states[entId].state.toLowerCase() === 'ceiling');
+                    }
+                }
+            }
+            
+            if (!radarData.capabilities.supported_mounts || !radarData.capabilities.supported_mounts.includes('ceiling')) {
+                isCeiling = false;
+            }
+        }
 
         return {
             origin_x: getVal('origin_x', 50),
@@ -40,7 +60,7 @@ export class RadarRenderer {
             mirror_x: getVal('mirror_x', false),
             mount_height: getVal('mount_height', 1.5),
             enable_correction: getVal('enable_3d', false),
-            ceiling_mount: getVal('ceiling_mount', false),
+            ceiling_mount: isCeiling,
             target_height: 1.2
         };
     }
@@ -197,39 +217,65 @@ export class RadarRenderer {
         const handleStroke = config.handle_stroke || 1; 
         const labelSize = parseFloat(config.label_size) || 3.5;
         
-        const TYPE_COLORS = { 'monitor_zones': '#FFD700', 'include_zones': '#00FF00', 'exclude_zones': '#FF0000' };
+        const TYPE_COLORS = { 'monitor_zones': '#FFD700', 'include_zones': '#00FF00', 'exclude_zones': '#FF0000', 'hardware_zones': '#9C27B0' };
 
         const createPoly = (obj, typeKey, pIdx, rName) => {
             const group = this._create('g', { 'data-type': typeKey, 'data-index': pIdx, 'data-radar': rName || '' });
             const pts = Array.isArray(obj) ? obj : obj.points;
             if (!pts || pts.length === 0) return null;
             const ptsStr = pts.map(p => p.join(',')).join(' ');
-            
-            let isSelZone = false;
-            if (isLayout) {
-                if (typeKey === 'monitor_zones' && rName === state.radar && state.selectedIndex === pIdx) isSelZone = true;
-            } else {
-                if (typeKey === state.type && state.selectedIndex === pIdx) isSelZone = true;
-            }
 
-            const color = TYPE_COLORS[typeKey] || 'white';
+            let isSelZone = false;
+            const activeRadarType = state.radar_zone_type || 'monitor_zones';
+
+            if (isLayout) {
+                if (typeKey === activeRadarType && rName === state.radar && state.selectedIndex === pIdx) {
+                    isSelZone = true;
+                }
+            } else {
+                if (typeKey === state.type && state.selectedIndex === pIdx) {
+                    isSelZone = true;
+                }
+            }
+			
+            let dynamicColor = TYPE_COLORS[typeKey];
+            let hwMode = 2; 
+            if (typeKey === 'hardware_zones') {
+                if (state.layoutChanges && state.layoutChanges.hw_zone_mode !== undefined) {
+                    hwMode = parseInt(state.layoutChanges.hw_zone_mode);
+                } else {
+                    const radarLayout = (state.data[rName] && state.data[rName].layout) || {};
+                    hwMode = radarLayout.hw_zone_mode !== undefined ? parseInt(radarLayout.hw_zone_mode) : 2;
+                }
+                dynamicColor = (hwMode === 1) ? '#00BFFF' : '#9C27B0';
+            }
+            const color = dynamicColor || 'white';
+
             let strokeColor = color; let strokeWidth = zoneStroke; let fillOpacity = 0.2; let ptrEvents = 'all'; let strokeOpacity = 1.0; 
             let cursorStyle = 'pointer';
 
             if (isLayout) {
-                if (typeKey !== 'monitor_zones') return null; 
+                if (typeKey !== 'monitor_zones' && typeKey !== 'hardware_zones') return null; 
+
                 if (rName === state.radar) {
-                    if (!state.fov_edit_mode) { ptrEvents = 'none'; fillOpacity = 0.2; strokeWidth = zoneStroke * 0.8; cursorStyle = 'default'; } 
-                    else { ptrEvents = 'all'; fillOpacity = 0.4; strokeColor = '#FFD700'; }
-                    if (isSelZone) { strokeColor = '#00FFFF'; strokeWidth = zoneStroke * 2; fillOpacity = 0.6; }
+                    if (!state.fov_edit_mode) { 
+                        ptrEvents = 'none'; fillOpacity = 0.2; strokeWidth = zoneStroke * 0.8; cursorStyle = 'default'; 
+                    } else { 
+                        if (typeKey === activeRadarType) {
+                            ptrEvents = 'all'; fillOpacity = 0.4; strokeColor = color; 
+                        } else {
+                            ptrEvents = 'none'; fillOpacity = 0.1; strokeColor = color; strokeOpacity = 0.2;
+                        }
+                    }
+                    if (isSelZone) { strokeColor = color; strokeWidth = zoneStroke * 2; fillOpacity = 0.6; }
                 } else {
                     ptrEvents = 'none'; fillOpacity = 0.05; strokeOpacity = 0.2; strokeWidth = zoneStroke * 0.5; 
                 }
             } else {
-                if (typeKey === 'monitor_zones') return null; 
+                if (typeKey === 'monitor_zones' || typeKey === 'hardware_zones') return null; 
                 if (typeKey === state.type) {
                     fillOpacity = 0.3; ptrEvents = 'all'; 
-                    if (isSelZone) { strokeColor = '#00FFFF'; strokeWidth = zoneStroke * 2; fillOpacity = 0.5; }
+                    if (isSelZone) { strokeColor = color; strokeWidth = zoneStroke * 2; fillOpacity = 0.5; }
                 } else {
                     fillOpacity = 0.05; strokeColor = '#555'; ptrEvents = 'none';
                 }
@@ -253,13 +299,47 @@ export class RadarRenderer {
                     const r = (isDrag || isSelPt) ? (baseR * 1.5) : baseR;
                     let fill = "rgba(255,255,255,0.4)"; let stroke = "none"; let strokeW = 0;
                     if (isDrag) { fill = color; stroke = "white"; strokeW = handleStroke; }
-                    else if (isSelPt) { fill = "cyan"; stroke = "white"; strokeW = handleStroke; }
+                    else if (isSelPt) { fill = color; stroke = "white"; strokeW = handleStroke; }
                     
                     group.appendChild(this._create('circle', { 
                         cx: p[0], cy: p[1], r: r, class: 'zone-handle', 'data-type': typeKey, 'data-index': pIdx, 'data-point-index': iIdx, 'data-radar': rName || ''
                     }, { fill: fill, stroke: stroke, strokeWidth: strokeW, pointerEvents: 'all', cursor: 'move' }));
                 });
             }
+			
+            if (typeKey === 'hardware_zones' && pts.length >= 3) {
+                const cfg = this.getRadarConfig(state, rName, null);
+                const ox = parseFloat(cfg.origin_x) || 50; const oy = parseFloat(cfg.origin_y) || 50;
+                const sx = parseFloat(cfg.scale_x) || 5; const sy = parseFloat(cfg.scale_y) || 5;
+                const rot = parseFloat(cfg.rotation) || 0;
+                const baseRad = (rot - 90) * Math.PI / 180.0;
+                const yVecX = Math.cos(baseRad); const yVecY = Math.sin(baseRad);
+                const xVecX = Math.cos(baseRad + (Math.PI / 2)); const xVecY = Math.sin(baseRad + (Math.PI / 2));
+
+                let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                pts.forEach(p => {
+                    const dx = p[0] - ox; const dy = p[1] - oy;
+                    let lx = (dx * xVecX + dy * xVecY) / sx;
+                    let ly = (dx * yVecX + dy * yVecY) / sy;
+                    if (cfg.mirror_x) lx = -lx;
+                    if (lx < minX) minX = lx; if (lx > maxX) maxX = lx;
+                    if (ly < minY) minY = ly; if (ly > maxY) maxY = ly;
+                });
+
+                const tempCfg = Object.assign({}, cfg, { enable_correction: false });
+                const c1 = this.math.calculate(tempCfg, {x: minX * 1000, y: minY * 1000});
+                const c2 = this.math.calculate(tempCfg, {x: maxX * 1000, y: minY * 1000});
+                const c3 = this.math.calculate(tempCfg, {x: maxX * 1000, y: maxY * 1000});
+                const c4 = this.math.calculate(tempCfg, {x: minX * 1000, y: maxY * 1000});
+
+				const boxPts = `${c1.left},${c1.top} ${c2.left},${c2.top} ${c3.left},${c3.top} ${c4.left},${c4.top}`;
+				const boxColor = (hwMode === 1) ? '#00BFFF' : '#E040FB'; 
+				group.appendChild(this._create('polygon', { points: boxPts }, {
+					fill: 'none', stroke: boxColor, strokeWidth: zoneStroke * 0.8, 
+					strokeDasharray: '2,2', pointerEvents: 'none', opacity: 0.8
+				}));
+            }
+			
             return group;
         };
 
@@ -267,9 +347,11 @@ export class RadarRenderer {
         if (state.data) {
             Object.keys(state.data).forEach(rName => {
                 if (['global_zones', 'global_config', '[object Object]', 'rd_default'].includes(rName)) return; 
-                if(state.data[rName] && Array.isArray(state.data[rName]['monitor_zones'])) {
-                    state.data[rName]['monitor_zones'].forEach((p, i) => drawTasks.push({ obj: p, type: 'monitor_zones', idx: i, rName: rName, area: this._calculateArea(Array.isArray(p)?p:p.points) }));
-                }
+                ['monitor_zones', 'hardware_zones'].forEach(zType => {
+                    if(state.data[rName] && Array.isArray(state.data[rName][zType])) {
+                        state.data[rName][zType].forEach((p, i) => drawTasks.push({ obj: p, type: zType, idx: i, rName: rName, area: this._calculateArea(Array.isArray(p)?p:p.points) }));
+                    }
+                });
             });
         }
         
@@ -285,8 +367,17 @@ export class RadarRenderer {
         drawTasks.forEach(task => { const el = createPoly(task.obj, task.type, task.idx, task.rName); if (el) svg.appendChild(el); });
         
         if (state.points.length > 0) {
-            let activeType = state.type; if (state.fov_edit_mode) activeType = 'monitor_zones';
-            const color = TYPE_COLORS[activeType] || 'white';
+            let activeType = state.type; 
+            if (state.fov_edit_mode) activeType = state.radar_zone_type || 'monitor_zones';
+            
+            let dynamicDrawColor = TYPE_COLORS[activeType] || 'white';
+            if (activeType === 'hardware_zones' && state.radar) {
+                const radarLayout = (state.data[state.radar] && state.data[state.radar].layout) || {};
+                let hwMode = state.layoutChanges?.hw_zone_mode !== undefined ? parseInt(state.layoutChanges.hw_zone_mode) : (radarLayout.hw_zone_mode !== undefined ? parseInt(radarLayout.hw_zone_mode) : 2);
+                dynamicDrawColor = (hwMode === 1) ? '#00BFFF' : '#9C27B0';
+            }
+            const color = dynamicDrawColor;
+
             state.points.forEach(p => svg.appendChild(this._create('circle', { cx: p[0], cy: p[1], r: baseR }, { fill: 'white', fillOpacity: 0.5, pointerEvents: 'none' })));
             const ptsStr = state.points.map(p => p.join(',')).join(' ');
             if (state.points.length >= 3) svg.appendChild(this._create('polygon', { points: ptsStr }, { fill: color, fillOpacity: 0.2, stroke: color, strokeWidth: zoneStroke, strokeDasharray: "4,2", pointerEvents: 'none' }));

@@ -10,7 +10,7 @@
 
 It is not just a floor plan card, but a **spatial perception engine**. RMM maps data from multiple scattered millimeter-wave radars in your home onto one or more floor plans, enabling whole-house human tracking, trajectory visualization, and precise coordinate-based automation.
 
-> 🚀 **V1.0 Officially Released!** Supports multiple floor plans, ceiling and side mounting modes, three zone management types (`Monitor`, `Detect Trigger`, and `Detect Exclude`), multi-radar target fusion, and a much smoother editor experience.
+> 🚀 **V1.1 Officially Released!** Massive performance and security upgrades! Introducing the **10Hz In-Memory WebSocket Bus** for zero database bloat, **ECDSA Zero-Trust Security**, and **Hardware-Level Zone** synchronization.
 
 ---
 
@@ -19,6 +19,7 @@ It is not just a floor plan card, but a **spatial perception engine**. RMM maps 
 ### 1. 🎯 WYSIWYG Visual Editor
 Ditch the tedious YAML coordinate calculations! RMM provides an interactive frontend editor:
 * **Config/View Modes**: Supports **Config Mode** and **Read-Only Mode**, allowing for both easy setup and clean display.
+* **Auto Discovery**: Automatically scans and easily adds supported radar devices within the local network.
 * **Multi-Map/Multi-Floor Support**: Manage multiple floors and locations easily with **`map_group`**, creating independent views for your home or office.
 * **Flexible Radar Configuration**: Drag and drop radar positions directly on the floor plan. Supports rotation, scaling, and mirroring for one-stop management.
 * **Automatic Positioning & Scaling**: With the **Freeze** function, you can visually locate a radar target relative to the floor plan to easily adjust the radar scaling—goodbye to blind guessing.
@@ -34,7 +35,8 @@ Supports arbitrary polygons with flexible editing, making zone management easy:
 * **Radar Monitor Zones**: Set individual monitor zones for each radar. Targets are only fused and displayed if they enter this zone; otherwise, global fusion is used by default.
 * **Global Detect Zones**: **Automation Powerhouse!** Freely set detection zones on the floor plan. When a fused target enters these zones, HA entities (automatically generated) are triggered. You can also customize trigger delays to avoid false alarms.
 * **Global Exclude Zones**: **The False Alarm Killer!** Draw zones around fans, curtains, or plants. The engine automatically filters out all interference signals within these areas.
-* **Automation Entities**: Each Global Detect Zone automatically generates a **Presence entity (`binary_sensor`)** and a **Count entity (`sensor`)**, letting you know if someone is there and how many people are present. Easily implement automations like "Person on sofa turns on TV" or "Person enters bathroom area adjusts lights."
+* **Hardware-Level Zones (`Hardware Zones`)**: (Exclusive for RMM Exclusive Radars, upcoming) Draw polygons on the HA map and sync them directly to the radar's hardware for native signal filtering! This perfectly complements global zones.
+* **Automation Entities**: Each Global Detect Zone automatically generates a **Presence entity (`binary_sensor`)** and a **Count entity (`sensor`)**, letting you easily implement automations. Easily implement automations like "Person on sofa automatically turns on TV" or "Person enters bathroom area automatically adjusts lights."
 
 ### 4. 📐 3D Spatial Correction
 For side-mounted radars, RMM features a built-in 3D geometric correction algorithm. It automatically converts Slant Range to Ground Distance based on installation height and target height, significantly improving positioning accuracy.
@@ -46,8 +48,8 @@ For side-mounted radars, RMM features a built-in 3D geometric correction algorit
 RMM is compatible with any millimeter-wave radar integrated into Home Assistant (including 1D, 2D, and 3D radars), as long as they provide `DISTANCE` or `X/Y` coordinate data, such as `HLK-LD2450` `LD2460` `LD6001` `LD6002b` `LD6004`
 
 * **Connection Methods**:
-    * ESPHome
-    * MQTT
+    * RMM Exclusive Radars, upcoming
+    * ESPHome / MQTT
     * Zigbee (Must support coordinate reporting)
 
 * **Entity Naming Convention**
@@ -64,6 +66,21 @@ RMM is compatible with any millimeter-wave radar integrated into Home Assistant 
      * *Supported units include: `m`, `cm`, `mm`*
      * *It is strongly recommended to set a unit. If no unit is set, `m` will be used by default.*
 
+#### High-Frequency Entity Exclusion Configuration
+
+**For V1.0.x Users: (Strongly Recommended)**
+If you are using **RMM V1.0.x**, it is strongly recommended to add the following configuration to your HA `configuration.yaml` to reduce database and I/O pressure:
+
+```yaml
+recorder:
+  exclude:
+    entity_globs:
+      - sensor.rmm_*_master
+```
+
+**For V1.1.x Users: No configuration needed**
+If you have upgraded to **RMM V1.1.x**, you do not need to add the above configuration. V1.1 has completely optimized the underlying data flow; all high-frequency coordinate data is transmitted via an in-memory channel and is no longer written to the Home Assistant database.
+
 ---
 
 ## 📦 Installation
@@ -73,7 +90,8 @@ RMM is compatible with any millimeter-wave radar integrated into Home Assistant 
 1. Open **HACS** in your Home Assistant.
 2. Go to **Integrations** and click the **Explore & Download Repositories** button at the bottom right.
 3. Search for **"Radar Map Manager"** and click **Download**.
-4. Restart your Home Assistant.
+4. Click to view the details, and click **Download** in the bottom right corner.
+5. Restart your Home Assistant.
 
 ### Method 2: Manual Installation
 1.  Download the `custom_components/radar_map_manager` folder from this repository.
@@ -241,6 +259,3 @@ If you find this project helpful, please give it a **⭐️ Star**！
 * Bug Reports: Please submit an [Issue](https://github.com/Moe8383/radar_map_manager/issues)。
 
 License: MIT
-
-
-

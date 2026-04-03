@@ -1,7 +1,8 @@
-"""Processor for Radar Map Manager (V1.0.0 Release)."""
+"""Processor for Radar Map Manager (V1.1.0 Release)."""
 import logging
 import json
 import time
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.core import HomeAssistant
 from .fusion_engine import FusionEngine
 
@@ -33,12 +34,4 @@ class RadarProcessor:
 
         data_to_send = self._coordinator.data
         
-        self.hass.states.async_set(
-            "sensor.radar_map_manager",
-            "active",
-            {
-                "data_json": json.dumps(data_to_send),
-                "last_updated": time.time(),
-                "version": 1
-            }
-        )
+        async_dispatcher_send(self.hass, "rmm_stream_update", data_to_send)

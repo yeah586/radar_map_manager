@@ -1,3 +1,30 @@
+const EDITOR_I18N = {
+    "hw_limit": { "zh": "⚠️ 操作被拒绝：当前雷达底层屏蔽区已达上限 ({0}个)。", "en": "⚠️ Operation denied: Hardware blind zones reached the limit of {0}." },
+    "not_supported": { "zh": "⚠️ 兼容性提示：该功能仅支持RMM专用雷达\n\n💡 您可以通过MONITOR或者EXCLUDE区域设置进行软件区域过滤。", "en": "⚠️ Compatibility Note: This feature only supports RMM exclusive radars.\n💡 You can use MONITOR or EXCLUDE for software filtering." },
+    "hw_unsupported": { "zh": "⚠️ 硬件限制：当前雷达 ({0}) 不支持硬件级屏蔽功能！", "en": "⚠️ Hardware Limit: Current radar ({0}) does not support hardware-level blind zones!" },
+    "modal_title": { "zh": "📡 添加 RMM 专属雷达", "en": "📡 Add RMM Exclusive Radar" },
+    "modal_discovered": { "zh": "✨ 局域网内已发现的设备 (点击快捷选择):", "en": "✨ Discovered devices in LAN (click to select):" },
+    "modal_not_found": { "zh": "🔍 未自动嗅探到新雷达实体，请手动输入名称。", "en": "🔍 No new radar entity automatically sniffed, please enter name manually." },
+    "modal_lbl_name": { "zh": "雷达设备名称 (小写英文/数字/下划线):", "en": "Radar Name (lowercase/numbers/underscores):" },
+    "modal_lbl_pin": { "zh": "🔑 专属 8 位配对码 (开源雷达留空):", "en": "🔑 Exclusive 8-digit PIN (leave blank for open-source):" },
+    "modal_lbl_ip": { "zh": "🌐 雷达 IP 地址 (可选，.local 无法解析时必填):", "en": "🌐 Radar IP (optional, required if .local fails):" },
+    "modal_btn_cancel": { "zh": "取消", "en": "Cancel" },
+    "modal_btn_confirm": { "zh": "确 定", "en": "Confirm" },
+    "err_input": { "zh": "❌ 内部错误：找不到输入框，请尝试刷新页面。", "en": "❌ Internal error: Input fields not found, please refresh the page." },
+    "empty_name": { "zh": "⚠️ 雷达名称不能为空！", "en": "⚠️ Radar name cannot be empty!" },
+    "dup_name": { "zh": "⚠️ 雷达 \"{0}\" 已经存在于地图中!", "en": "⚠️ Radar \"{0}\" already exists in the map!" },
+    "ha_reject": { "zh": "❌ HA 拒绝了请求: ", "en": "❌ HA rejected the request: " },
+    "del_radar": { "zh": "确定要删除 {0} 吗？", "en": "Delete {0}?" },
+    "del_zone": { "zh": "确定要删除该区域吗？", "en": "Are you sure you want to delete this zone?" },
+    "unsaved": { "zh": "检测到未保存的更改！现在保存吗？", "en": "Unsaved changes detected! Save now?" },
+    "draw_3": { "zh": "请绘制至少3个点，或选择一个区域。", "en": "Please draw 3+ points or select a zone." },
+    "name_conflict": { "zh": "名称冲突！\"{0}\" 将导致实体ID重复。请使用唯一的名称。", "en": "Name conflict! \"{0}\" will result in a duplicate Entity ID. Please use a unique name." },
+    "discard": { "zh": "放弃更改？", "en": "Discard changes?" },
+    "clear_all": { "zh": "清除所有区域？", "en": "Clear ALL zones?" },
+    "sel_radar": { "zh": "请先选择一个雷达。", "en": "Please select a radar first." },
+    "no_t1": { "zh": "未在当前雷达上找到活跃的 Target 1。无法冻结校准。", "en": "No active Target 1 found on this radar. Cannot freeze." }
+};
+
 export class RadarEditor {
     constructor(host, root, math, ui, renderer) {
         this.host = host; 
@@ -7,6 +34,16 @@ export class RadarEditor {
         this.renderer = renderer; 
         this.lastClickTime = 0;
         this.isAddingNew = false; 
+        
+        this.t = (key, arg0 = "") => {
+            const lang = (this.host.state.hass && this.host.state.hass.language) || 'en';
+            const isZh = lang.startsWith('zh');
+            if (EDITOR_I18N[key]) {
+                let txt = isZh ? EDITOR_I18N[key].zh : EDITOR_I18N[key].en;
+                return txt.replace("{0}", arg0);
+            }
+            return key;
+        };
     }
 
     bindEvents(state, config, callbacks) {
@@ -19,6 +56,18 @@ export class RadarEditor {
         const ptY = this.root.getElementById('pt-y');
         const inName = this.root.getElementById('in-name');
         const inDelay = this.root.getElementById('in-delay');
+		
+		const selRadarType = this.root.getElementById('sel-radar-zone-type');
+        if (selRadarType) {
+            if (!state.radar_zone_type) state.radar_zone_type = 'monitor_zones';
+            selRadarType.value = state.radar_zone_type;
+            
+            selRadarType.onchange = (e) => {
+                state.radar_zone_type = e.target.value;
+                exitAddMode();
+                if(callbacks.resetSelection) callbacks.resetSelection();
+            };
+        }
         
         if (panel) { 
             const stop = (e) => e.stopPropagation(); 
@@ -128,13 +177,27 @@ export class RadarEditor {
         bindClick('btn-mode-settings', () => { exitAddMode(); if(callbacks.onModeChange) callbacks.onModeChange('settings'); });
         
         bindClick('btn-edit-fov', () => { 
-            exitAddMode();
             if (state.fov_edit_mode) {
+                
+                if (state.hasUnsavedChanges) {
+
+                    const isZoneEdited = (state.selectedIndex !== null) || (state.points && state.points.length >= 3);
+                    
+                    if (isZoneEdited) {
+                        if (callbacks.onSave) callbacks.onSave();
+                    }
+                    
+                    if (callbacks.onSaveLayout) callbacks.onSaveLayout();
+                }
+
                 state.selectedIndex = null;
                 state.selectedPointIndex = null;
             }
+            
+            exitAddMode();
             if(callbacks.onToggleFOV) callbacks.onToggleFOV(); 
         });
+        // =========================================================
         
         bindLayoutInput(this, 'layout-x', 'origin_x', callbacks); 
         bindLayoutInput(this, 'layout-y', 'origin_y', callbacks); 
@@ -176,27 +239,158 @@ export class RadarEditor {
         bindClick('btn-cancel-layout', callbacks.onCancelLayout);
 
         bindClick('btn-add-radar', () => {
-            const name = prompt("Enter new radar name:\n请输入新的雷达名称：");
-            if(name && name.trim()) {
-                const newName = name.trim();
-                const lowerName = newName.toLowerCase();
-                const has2D = state.hass.states[`sensor.${lowerName}_target_1_x`];
-                const has1D = state.hass.states[`sensor.${lowerName}_distance`];
-                if (!has2D && !has1D) { alert(`Radar Entity Not Found!\n未找到雷达实体！\n\nSystem looked for:\n系统查找了：\n- sensor.${lowerName}_target_1_x\n- sensor.${lowerName}_distance`); return; }
+            if (document.getElementById('rmm-add-modal-overlay')) return;
+
+            const existingRadars = Object.keys(state.data || {}).filter(k => k !== 'global_zones' && k !== 'global_config');
+            const discovered = [];
+
+            if (state.hass && state.hass.states) {
+                Object.keys(state.hass.states).forEach(entity_id => {
+                    if (entity_id.startsWith('sensor.') && entity_id.endsWith('_presence_target_count')) {
+                        let foundName = entity_id.split('.')[1].replace('_presence_target_count', '');
+                        if (!existingRadars.includes(foundName)) {
+                            discovered.push(foundName);
+                        }
+                    }
+                });
+            }
+
+            const modalOverlay = document.createElement('div');
+            modalOverlay.id = 'rmm-add-modal-overlay';
+            modalOverlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; display:flex; justify-content:center; align-items:center; font-family:-apple-system, BlinkMacSystemFont, sans-serif;";
+            
+            const modalBox = document.createElement('div');
+            modalBox.style.cssText = "background:var(--card-background-color, #fff); color:var(--primary-text-color, #333); width:360px; max-width:90%; padding:24px; border-radius:12px; box-shadow:0 8px 30px rgba(0,0,0,0.3);";
+            
+            let html = `<h3 style="margin:top:0; margin-bottom:20px; font-size:18px; color:var(--primary-text-color, #333);">${this.t('modal_title')}</h3>`;
+            
+            if (discovered.length > 0) {
+                html += `<div style="font-size:13px; font-weight:bold; color:var(--secondary-text-color, #666); margin-bottom:10px;">${this.t('modal_discovered')}</div>`;
+                html += `<div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px;">`;
+                discovered.forEach(name => {
+                    html += `<button type="button" class="btn-discovered" style="padding:6px 12px; border:1px solid var(--primary-color, #03a9f4); background:transparent; color:var(--primary-color, #03a9f4); border-radius:16px; cursor:pointer; font-size:13px; font-weight:bold; transition:all 0.2s;">${name}</button>`;
+                });
+                html += `</div>`;
+            } else {
+                html += `<div style="font-size:13px; color:var(--secondary-text-color, #888); margin-bottom:20px; font-style:italic; padding:10px; background:var(--secondary-background-color, #f5f5f5); border-radius:6px;">${this.t('modal_not_found')}</div>`;
+            }
+
+            html += `
+                <label style="display:block; font-size:13px; font-weight:bold; margin-bottom:5px;">${this.t('modal_lbl_name')}</label>
+                <input type="text" id="rmm-input-name" placeholder="例如: living_room" style="width:100%; box-sizing:border-box; padding:10px; border:1px solid var(--divider-color, #ccc); border-radius:6px; margin-bottom:15px; background:var(--secondary-background-color, #fafafa); color:var(--primary-text-color, #333); font-size:14px; outline:none;">
                 
-                if (state.data && state.data[newName]) { alert(`Radar "${newName}" already exists!\n雷达 "${newName}" 已存在！`); return; }
-                state.hass.callService('radar_map_manager', 'add_radar', { radar_name: newName, map_group: state.mapGroup || "default" });
+                <label style="display:block; font-size:13px; font-weight:bold; margin-bottom:5px;">${this.t('modal_lbl_pin')}</label>
+                <input type="text" id="rmm-input-pin" placeholder="输入控制台上的红底验证码" style="width:100%; box-sizing:border-box; padding:10px; border:1px solid var(--divider-color, #ccc); border-radius:6px; margin-bottom:25px; text-transform:uppercase; font-weight:bold; letter-spacing:1px; background:var(--secondary-background-color, #fafafa); color:var(--primary-text-color, #333); font-size:14px; outline:none;">
+                
+                <label style="display:block; font-size:13px; font-weight:bold; margin-bottom:5px;">${this.t('modal_lbl_ip')}</label>
+                <input type="text" id="rmm-input-ip" placeholder="例如: 192.168.1.100" style="width:100%; box-sizing:border-box; padding:10px; border:1px solid var(--divider-color, #ccc); border-radius:6px; margin-bottom:25px; background:var(--secondary-background-color, #fafafa); color:var(--primary-text-color, #333); font-size:14px; outline:none;">
+
+                <div style="display:flex; justify-content:flex-end; gap:12px;">
+                    <button type="button" id="rmm-btn-cancel" style="padding:10px 18px; border:none; background:var(--disabled-text-color, #ccc); color:#fff; border-radius:6px; cursor:pointer; font-size:14px; font-weight:bold; transition:0.2s;">${this.t('modal_btn_cancel')}</button>
+                    <button type="button" id="rmm-btn-confirm" style="padding:10px 18px; border:none; background:var(--primary-color, #03a9f4); color:#fff; border-radius:6px; cursor:pointer; font-size:14px; font-weight:bold; transition:0.2s;">${this.t('modal_btn_confirm')}</button>
+                </div>
+            `;
+            
+            modalBox.innerHTML = html;
+            modalOverlay.appendChild(modalBox);
+            
+            document.body.appendChild(modalOverlay);
+
+            const escListener = (e) => {
+                if (e.key === 'Escape') {
+                    modalOverlay.remove();
+                    document.removeEventListener('keydown', escListener);
+                }
+            };
+            document.addEventListener('keydown', escListener);
+
+            const inputName = modalBox.querySelector('#rmm-input-name');
+            const inputPin = modalBox.querySelector('#rmm-input-pin');
+
+            const discBtns = modalBox.querySelectorAll('.btn-discovered');
+            discBtns.forEach(btn => {
+                btn.onclick = () => {
+                    discBtns.forEach(b => { 
+                        b.style.background = 'transparent'; 
+                        b.style.color = 'var(--primary-color, #03a9f4)'; 
+                    });
+                    btn.style.background = 'var(--primary-color, #03a9f4)';
+                    btn.style.color = '#fff';
+                    inputName.value = btn.innerText;
+                    inputPin.focus();
+                };
+            });
+
+            modalBox.querySelector('#rmm-btn-cancel').onclick = () => {
+                modalOverlay.remove();
+                document.removeEventListener('keydown', escListener);
+            };
+
+            modalBox.querySelector('#rmm-btn-confirm').onclick = () => {
+                const nameField = modalBox.querySelector('#rmm-input-name');
+                const pinField = modalBox.querySelector('#rmm-input-pin');
+                const ipField = modalBox.querySelector('#rmm-input-ip');
+                
+                if (!nameField || !pinField) {
+                    alert(this.t("err_input"));
+                    return;
+                }
+
+                const rawName = nameField.value;
+                const rawPin = pinField.value;
+                const rawIp = ipField ? ipField.value.trim() : "";
+
+                if (!rawName || !rawName.trim()) {
+                    alert(this.t("empty_name"));
+                    nameField.focus();
+                    return;
+                }
+
+                const lowerName = rawName.trim().toLowerCase();
+                const finalPin = rawPin.trim().toUpperCase(); 
+
+                console.log(`RMM Debug: 准备发送数据 - 名称: ${lowerName}, 密码: [${finalPin}]`);
+
+                if (state.data && state.data[lowerName]) { 
+                    alert(this.t("dup_name", lowerName)); 
+                    return; 
+                }
+
+                modalOverlay.remove();
+                document.removeEventListener('keydown', escListener);
+
+                const payload = { 
+                    radar_name: lowerName, 
+                    map_group: state.mapGroup || "default",
+                    device_pin: finalPin, 
+                    radar_ip: rawIp
+                };
+
+                state.hass.callService('radar_map_manager', 'add_radar', payload)
+                .then(() => {
+                    console.log("RMM: 🚀 add_radar 请求发送成功！");
+                })
+                .catch(err => {
+                    alert(this.t("ha_reject") + JSON.stringify(err));
+                });
+
                 setTimeout(() => {
-                    if (!state.data[newName]) state.data[newName] = { layout: {}, monitor_zones: [] }; 
+                    if (!state.data[lowerName]) {
+                        state.data[lowerName] = { layout: {}, monitor_zones: [], hardware_zones: [] }; 
+                    } 
                     this.ui.updateRadarList(state, config); 
                     const sel = this.root.getElementById('sel-radar'); 
-                    if(sel) { sel.value = newName; if(callbacks.onRadarChange) callbacks.onRadarChange(newName, sel); }
+                    if(sel) { 
+                        sel.value = lowerName; 
+                        if(callbacks.onRadarChange) callbacks.onRadarChange(lowerName, sel); 
+                    }
                 }, 500);
-            }
+            };
         });
+
         bindClick('btn-del-radar', () => {
-            if(!state.radar || state.radar === 'rd_default') return alert("Select valid radar\n请选择有效的雷达");
-            if(confirm(`Delete ${state.radar}?\n确认删除 ${state.radar} 吗？`)) {
+            if(!state.radar || state.radar === 'rd_default') return alert(this.t("sel_radar"));
+            if(confirm(this.t("del_radar", state.radar))) {
                 const rToDelete = state.radar;
                 state.hass.callService('radar_map_manager', 'remove_radar', { radar_name: rToDelete });
                 setTimeout(() => { 
@@ -273,9 +467,29 @@ export class RadarEditor {
                 if(callbacks.resetSelection) callbacks.resetSelection();
             }
         });
+		
+        bindClick('btn-hw-mode', () => {
+            if (!state.radar) return;
+            
+            let currentMode = 2;
+            if (state.layoutChanges && state.layoutChanges.hw_zone_mode !== undefined) {
+                currentMode = parseInt(state.layoutChanges.hw_zone_mode);
+            } else if (state.data[state.radar] && state.data[state.radar].layout && state.data[state.radar].layout.hw_zone_mode !== undefined) {
+                currentMode = parseInt(state.data[state.radar].layout.hw_zone_mode);
+            }
+            
+            const newMode = (currentMode === 1) ? 2 : 1; 
+
+            if (callbacks.onLayoutParamChange) {
+                callbacks.onLayoutParamChange('hw_zone_mode', newMode);
+            }
+            
+            this.ui.updateStatus(state, config);
+        });
+        // =================================================================
 
         bindClick('btn-del-zone', () => {
-            if (confirm("Are you sure you want to delete this zone?\n您确定要删除此区域吗？")) {
+            if (confirm(this.t("del_zone"))) {
                 if(callbacks.onDelZone) callbacks.onDelZone();
                 exitAddMode();
             }
@@ -289,7 +503,7 @@ export class RadarEditor {
                 this.ui.updateLayoutInputs(state, state.hass);
             };
         }
-        bindClick('btn-clear', () => { if(callbacks.onClear) callbacks.onClear(); exitAddMode(); });
+        bindClick('btn-clear', () => { if(callbacks.onClear) callbacks.onClear(); exitAddMode(); }); 
 
         const btnSave = this.root.getElementById('btn-save');
         if (btnSave) {
@@ -297,12 +511,39 @@ export class RadarEditor {
                 if (state.points.length > 0 || (state.selectedIndex !== null && state.hasUnsavedChanges)) {
                     if(callbacks.onSave) callbacks.onSave();
                     exitAddMode(); 
-                } else {
+                } 
+                else {
+                    if (state.editMode === 'layout' && state.radar_zone_type === 'hardware_zones') {
+                        const radarData = state.data[state.radar] || {};
+                        const caps = radarData.capabilities || {};
+                        const maxHwZones = caps.max_hw_zones !== undefined ? caps.max_hw_zones : 3; 
+                        const list = state.data[state.radar][state.radar_zone_type] || [];
+                        
+                        if (list.length >= maxHwZones) {
+                            alert(this.t("hw_limit", maxHwZones));
+                            return; 
+                        }
+                    }
+
                     if(callbacks.resetSelection) callbacks.resetSelection(); 
                     
                     this.isAddingNew = true;
                     state.isAddingNew = true; 
                     
+                    const inName = this.root.getElementById('in-name');
+                    if (inName) {
+                        const list = getActiveList(state) || [];
+                        const nextIdx = list.length + 1; 
+                        
+                        if (state.editMode === 'layout' && state.radar_zone_type === 'hardware_zones') {
+                            inName.value = `HW ZONE ${nextIdx}`;
+                        } else if (state.editMode === 'layout') {
+                            inName.value = `Monitor ${nextIdx}`;
+                        } else {
+                            inName.value = `Zone ${nextIdx}`; 
+                        }
+                    }
+
                     const rootEl = this.root.getElementById('root');
                     if (rootEl) {
                         const rect = rootEl.getBoundingClientRect();
@@ -336,11 +577,11 @@ export class RadarEditor {
                 reader.onload = (ev) => {
                     try {
                         const json = JSON.parse(ev.target.result);
-                        if (confirm("Import config?\n确认导入配置吗？")) {
+                                if (confirm(this.t("unsaved") )) {
                             state.hass.callService('radar_map_manager', 'import_config', { config_json: JSON.stringify(json) });
-                            setTimeout(() => { alert("Imported!\n导入成功！"); location.reload(); }, 1000);
+                            setTimeout(() => { alert("Imported!"); location.reload(); }, 1000);
                         }
-                    } catch (err) { alert("Invalid JSON\n无效的 JSON 文件"); }
+                    } catch (err) { alert("Invalid JSON"); }
                 };
                 reader.readAsText(file);
                 fileInput.value = '';
@@ -427,7 +668,7 @@ export class RadarEditor {
         }
 
         if (isDirty) {
-            if (confirm("Unsaved changes detected! Save now?\n检测到未保存的更改！现在保存吗？")) {
+            if (confirm(this.t("unsaved"))) {
                 if (saveAction === 'layout' && callbacks.onSaveLayout) callbacks.onSaveLayout();
                 else if(callbacks.onSave) callbacks.onSave(); 
                 setTimeout(onProceed, 200); 
@@ -738,7 +979,8 @@ export class RadarEditor {
 function getActiveList(state) {
     if (state.editMode === 'layout') {
         if (!state.data[state.radar]) return [];
-        return state.data[state.radar]['monitor_zones'] || [];
+        const type = state.radar_zone_type || 'monitor_zones';
+        return state.data[state.radar][type] || [];
     } else {
         if (!state.data.global_zones) return [];
         return state.data.global_zones[state.type] || [];
