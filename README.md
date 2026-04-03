@@ -45,37 +45,39 @@ For side-mounted radars, RMM features a built-in 3D geometric correction algorit
 
 ## 🛠️ Supported Hardware
 
-RMM is compatible with any millimeter-wave radar integrated into Home Assistant (including 1D, 2D, and 3D radars), as long as they provide `DISTANCE` or `X/Y` coordinate data, such as `HLK-LD2450` `LD2460` `LD6001` `LD6002b` `LD6004`
+RMM is compatible with any millimeter-wave radar integrated into Home Assistant (including 1D, 2D, and 3D variants), as long as they provide `DISTANCE` or `X/Y` coordinate data, such as `HLK-LD2450` `LD2460` `LD6001` `LD6002b` `LD6004`.
 
-* **Connection Methods**:
-    * RMM Exclusive Radars, upcoming
-    * ESPHome / MQTT
-    * Zigbee (Must support coordinate reporting)
+### Connection Methods
+* **RMM Exclusive Firmware** *(Upcoming, stay tuned)*
+* **ESPHome / MQTT** *(Recommended for open-source users)*
+* **Zigbee** *(Must support coordinate reporting)*
 
-* **Entity Naming Convention**
-   * ‼️ IMPORTANT ‼️ To ensure the system correctly identifies radar data, please follow these naming formats:
+### ⚠️ IMPORTANT NOTICE!!!
 
-   * **1D Radar**: `sensor.[radar_name]_distance`
-     * *Example: `sensor.rd_ld2410_distance`*
-   * **2D/3D Radar**: `sensor.[radar_name]_target_?_x`
-     * *Must include: `_x`, `_y`, `_z` coordinates*
-     * *Example: `sensor.rd_ld6004_target_1_x`*
-   * **Radar Target Count [Optional]**: `sensor.[radar_name]_presence_target_count`
-     * *Example: `sensor.rd_ld2450_presence_target_count`*
-   * **Target Coordinate Units**:
-     * *Supported units include: `m`, `cm`, `mm`*
-     * *It is strongly recommended to set a unit. If no unit is set, `m` will be used by default.*
+#### Coordinate Entity Naming Convention (Non-RMM Exclusive Radars)
+To ensure the integration correctly parses radar data, please adhere to the following entity naming conventions:
 
-#### High-Frequency Entity Exclusion Configuration
+1. **1D Radar**: `sensor.[radar_name]_distance`
+   * *Example: `sensor.rd_ld2410_distance`*
+2. **2D/3D Radar**: `sensor.[radar_name]_target_?_x`
+   * *Must include `_x`, `_y`, and optionally `_z` variants.*
+   * *Example: `sensor.rd_ld6004_target_1_x`*
+3. **Radar Target Count [Optional]**: `sensor.[radar_name]_presence_target_count`
+   * *Example: `sensor.rd_ld2450_presence_target_count`*
+4. **Target Coordinate Units**:
+   * *Supported units: `m`, `cm`, `mm`*
+   * *Highly recommended to define the unit. If omitted, `m` (meters) is assumed by default.*
 
-**For V1.0.x Users: (Strongly Recommended)**
-If you are using **RMM V1.0.x**, it is strongly recommended to add the following configuration to your HA `configuration.yaml` to reduce database and I/O pressure:
+#### Database Optimization (Recorder Exclusion)
+
+**For V1.0.x Users (Strongly Recommended)**:
+If you are running **RMM V1.0.x**, we strongly advise adding the following to your `configuration.yaml` to minimize database bloat and disk I/O:
 
 ```yaml
 recorder:
   exclude:
     entity_globs:
-      - sensor.rmm_*_master
+      - sensor.rmm_*_master  # Excludes high-frequency coordinate attributes
 ```
 
 **For V1.1.x Users: No configuration needed**
