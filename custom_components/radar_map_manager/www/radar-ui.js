@@ -4,12 +4,9 @@ export class RadarUI {
         this.lastRenderedIndex = -1;
         this.lastPointIdx = -1;
     }
-
     render(state, config) {
         this.injectStyles();
-
         if (this.root.getElementById('edit-ui')) return;
-
         let rootEl = this.root.getElementById('root');
         if (!rootEl) {
             const container = document.createElement('div');
@@ -18,7 +15,6 @@ export class RadarUI {
             container.style.height = '100%';
             container.style.position = 'relative';
             container.style.touchAction = "none";
-            
             container.innerHTML = `
                 <div id="map-container"></div>
                 <svg id="svg-canvas" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
@@ -29,13 +25,11 @@ export class RadarUI {
             this.root.appendChild(container);
             rootEl = container;
         }
-
         if (config.bg_image) {
             rootEl.style.backgroundImage = `url('${config.bg_image}')`;
             rootEl.style.backgroundSize = 'contain';
             rootEl.style.backgroundPosition = 'center';
             rootEl.style.backgroundRepeat = 'no-repeat';
-            
             if (!rootEl.dataset.hasRatio) {
                 const img = new Image();
                 img.src = config.bg_image;
@@ -51,7 +45,6 @@ export class RadarUI {
             rootEl.style.width = '100%';
             rootEl.style.height = '100%';
         }
-
         if (config && config.style && rootEl) {
             try {
                 Object.keys(config.style).forEach(key => {
@@ -61,16 +54,13 @@ export class RadarUI {
                 console.warn("RMM: Failed to apply custom styles", e);
             }
         }
-
         this.renderPanel(state, config);
         if (config) this.updateRadarList(state, config);
-
         const btnToggle = this.root.getElementById('btn-toggle-mode');
         if (config && config.read_only && btnToggle) {
             btnToggle.style.display = 'none';
         }
     }
-
     injectStyles() {
         let style = this.root.getElementById('radar-styles');
         if (!style) {
@@ -78,23 +68,18 @@ export class RadarUI {
             style.id = 'radar-styles';
             this.root.appendChild(style);
         }
-        
         style.textContent = `
             :host { display: block; position: relative; overflow: hidden; width: 100%; height: 100%; isolation: isolate; }
             #root { position: relative; width: 100%; height: 100%; user-select: none; overflow: hidden; box-sizing: border-box; }
-            
             #svg-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
             .zone-poly { cursor: pointer; transition: fill-opacity 0.2s; }
             .zone-handle { cursor: move; }
             .radar-handle-body { cursor: move; }
             .radar-handle-rot { cursor: alias; }
-            
             #dots-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
             #click-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 3; }
-            
             #edit-ui { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; }
             #edit-ui.show { display: block; }
-            
             .radar-panel {
                 position: absolute; right: 5px; top: 35px; width: 230px; 
                 background: rgba(20, 20, 20, 0.9); backdrop-filter: blur(5px);
@@ -105,7 +90,6 @@ export class RadarUI {
             }
             .radar-panel.collapsed .panel-body { display: none; }
             .radar-panel.collapsed { width: 180px; }
-            
             .panel-header {
                 padding: 6px 8px; background: linear-gradient(to bottom, #3a3a3a, #2a2a2a);
                 border-bottom: 1px solid #444; border-radius: 5px 5px 0 0;
@@ -116,7 +100,6 @@ export class RadarUI {
             .panel-header .win-controls { display: flex; gap: 8px; pointer-events: auto; }
             .panel-header .win-btn { cursor: pointer; font-size: 14px; font-weight: bold; color: #aaa; }
             .panel-header .win-btn:hover { color: white; }
-            
             .panel-body { padding: 5px; display: flex; flex-direction: column; gap: 4px; }
             .tabs { display: flex; gap: 2px; margin-bottom: 4px; }
             .tabs button { background: #222; border: 1px solid #444; color: #888; padding: 4px 0; border-radius: 2px; font-size: 10px; flex: 1; font-weight: bold; cursor: pointer; }
@@ -132,7 +115,6 @@ export class RadarUI {
             .chk-label span { font-size: 9px; color: #ccc; }
             input[type="number"], input[type="text"], select { background: #111; border: 1px solid #333; color: white; padding: 1px 3px; border-radius: 2px; flex: 1; min-width: 0; font-size: 10px; height: 18px; }
             input[type="color"] { padding: 0; border: none; height: 20px; background: none; }
-            
             select { height: 22px; padding: 0px 2px; cursor: pointer; }
             #sel-radar { max-width: 110px; text-overflow: ellipsis; }
             .slider-row { display: flex; align-items: center; gap: 1px; flex: 1; min-width: 0; }
@@ -151,23 +133,19 @@ export class RadarUI {
             button.warning { background: #F57F17 !important; border-color: #E65100 !important; color: black !important; }
             button.danger { background: #C62828 !important; border-color: #B71C1c !important; color: white !important; }
             .point-editor { background: #1a1a1a; padding: 2px; border-radius: 2px; opacity: 0.5; pointer-events: none; border: 1px solid #333; }
-            
             #btn-toggle-mode { position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 4px; color: rgba(255, 255, 255, 0.7); font-size: 14px; cursor: pointer; z-index: 5; display: flex; align-items: center; justify-content: center; pointer-events: auto; transition: all 0.2s; }
             #btn-toggle-mode:hover { background: rgba(33, 150, 243, 0.8); color: white; border-color: #2196F3; }
             #btn-toggle-mode.active { background: #b71c1c; color: white; border-color: #ff5252; }
-            
             .separator { height: 1px; background: #333; margin: 4px 0; }
             .dot { position: absolute; transform: translate(-50%, -50%); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: bold; color: white; text-shadow: 0 0 2px black; box-shadow: 0 0 3px white; pointer-events: none; }
             .base-shadow { position: absolute; transform: translate(-50%, -50%); border-radius: 50%; background: rgba(0,0,0,0.5); filter: blur(1px); pointer-events: none; }
             .zone-label { font-size: 3.5px; fill: white; text-anchor: middle; pointer-events: none; text-shadow: 1px 1px 2px black; }
         `;
     }
-
     renderPanel(state, config) {
         if (this.root.getElementById('edit-ui')) return;
         const div = document.createElement('div');
         div.id = 'edit-ui'; div.className = 'edit-ui';
-        
         div.innerHTML = `
             <div id="panel" class="radar-panel">
                 <div id="panel-header" class="panel-header">
@@ -289,13 +267,11 @@ export class RadarUI {
                             </div>
                             <span id="val-target" style="width:30px; text-align:right">1.5m</span>
                         </div>
-                        
                         <div class="row">
                             <label style="width:50px">Color</label>
                             <input type="color" id="set-fused-color" style="flex:1; height:20px; cursor:pointer; padding:0; border:none;">
                             <span id="val-fused-color" style="width:50px; text-align:right; font-size:9px;">#FFD700</span>
                         </div>
-
                         <div class="separator" style="margin: 1px 0;"></div>
                         <div class="actions">
                             <button id="btn-backup" style="background:#1976D2; color:white;">Backup</button>
@@ -308,52 +284,41 @@ export class RadarUI {
         `;
         this.root.appendChild(div);
     }
-
     updateStatus(state, config) {
         const rootEl = this.root.getElementById('root');
         if (rootEl) {
             rootEl.style.touchAction = state.editing ? 'none' : 'auto';
         }
-
         const editUI = this.root.getElementById('edit-ui');
         if (editUI) { if (state.editing) editUI.classList.add('show'); else editUI.classList.remove('show'); }
-
         const clickLayer = this.root.getElementById('click-layer');
         if (clickLayer) clickLayer.style.pointerEvents = state.editing ? 'auto' : 'none';
-
         const btnToggle = this.root.getElementById('btn-toggle-mode');
         if (btnToggle) {
             if (state.editing) { btnToggle.innerText = "❌"; btnToggle.classList.add('active'); }
             else { btnToggle.innerText = "⚙️"; btnToggle.classList.remove('active'); }
         }
-
         const lPanel = this.root.getElementById('layout-tools');
         const zPanel = this.root.getElementById('zone-tools');
         const sPanel = this.root.getElementById('settings-tools');
-        
         const bLayout = this.root.getElementById('btn-mode-layout');
         const bZone = this.root.getElementById('btn-mode-zone');
         const bSet = this.root.getElementById('btn-mode-settings');
         const selType = this.root.getElementById('sel-type');
         const rowSelectType = this.root.getElementById('row-select-type'); 
-
         const show = (el) => { if(el) el.classList.remove('hidden'); };
         const hide = (el) => { if(el) el.classList.add('hidden'); };
         const active = (el, isActive) => { if(el) el.className = isActive ? 'active' : ''; };
-
         hide(lPanel); hide(zPanel); hide(sPanel);
         active(bLayout, false); active(bZone, false); active(bSet, false);
-
         if (state.editMode === 'layout') {
             show(lPanel);
             active(bLayout, true);
-            
             const innerParams = this.root.getElementById('layout-inner-params');
             const btnFov = this.root.getElementById('btn-edit-fov');
             const selRadar = this.root.getElementById('sel-radar');
             const btnAdd = this.root.getElementById('btn-add-radar');
             const btnDel = this.root.getElementById('btn-del-radar');
-            
             if (state.fov_edit_mode) {
                 if(innerParams) innerParams.style.display = 'none'; 
                 show(zPanel); 
@@ -378,11 +343,9 @@ export class RadarUI {
                 const selRadarZoneType = this.root.getElementById('sel-radar-zone-type');
                 if(selRadarZoneType) selRadarZoneType.disabled = false;
             }
-
         } else if (state.editMode === 'zone') {
             show(zPanel);
             active(bZone, true);
-            
             if (rowSelectType) rowSelectType.style.display = 'flex';
             if (selType) {
                 if (!selType.querySelector('option[value="include_zones"]')) {
@@ -397,25 +360,20 @@ export class RadarUI {
                     selType.value = state.type;
                 }
             }
-
         } else if (state.editMode === 'settings') {
             show(sPanel);
             active(bSet, true);
         }
-
         const inName = this.root.getElementById('in-name');
         const inDelay = this.root.getElementById('in-delay');
         const ptX = this.root.getElementById('pt-x');
         const ptY = this.root.getElementById('pt-y');
-        
         const isEditing = (state.editMode === 'zone' || (state.editMode === 'layout' && state.fov_edit_mode));
         const btnSave = this.root.getElementById('btn-save');
         const btnDel = this.root.getElementById('btn-del-zone');
-
         const getList = () => {
             if (state.editMode === 'layout') {
                 if (!state.radar || !state.data[state.radar]) return [];
-                // ✨ 同样修复这里
                 const type = state.radar_zone_type || 'monitor_zones';
                 return state.data[state.radar][type] || [];
             } else {
@@ -423,32 +381,25 @@ export class RadarUI {
                 return state.data.global_zones[state.type] || [];
             }
         };
-
         const activeList = getList();
         const hasSwitchedZone = (this.lastRenderedIndex !== state.selectedIndex);
         const hasSwitchedPoint = (this.lastPointIdx !== state.selectedPointIndex);
-        
         this.lastRenderedIndex = state.selectedIndex;
         this.lastPointIdx = state.selectedPointIndex;
-
         if (isEditing && state.selectedIndex !== null && activeList[state.selectedIndex]) {
             const z = activeList[state.selectedIndex];
-            
             const isActiveName = (this.root.activeElement === inName);
             const forceUpdateName = hasSwitchedZone || hasSwitchedPoint || !isActiveName;
             if (inName && forceUpdateName) inName.value = z.name || '';
-            
             const isActiveDelay = (this.root.activeElement === inDelay);
             const forceUpdateDelay = hasSwitchedZone || hasSwitchedPoint || !isActiveDelay;
             if (inDelay && forceUpdateDelay) inDelay.value = z.delay || 0;
-            
             if (state.selectedPointIndex !== null && ptX && ptY) {
                 const pts = Array.isArray(z) ? z : z.points;
                 const p = pts[state.selectedPointIndex];
                 if (p) {
                     const forceUpdatePtX = hasSwitchedZone || hasSwitchedPoint || (this.root.activeElement !== ptX);
                     if (forceUpdatePtX) ptX.value = p[0].toFixed(1);
-                    
                     const forceUpdatePtY = hasSwitchedZone || hasSwitchedPoint || (this.root.activeElement !== ptY);
                     if (forceUpdatePtY) ptY.value = p[1].toFixed(1);
                 }
@@ -456,7 +407,6 @@ export class RadarUI {
                 if(ptX) ptX.value = '';
                 if(ptY) ptY.value = '';
             }
-            
             if(btnSave) {
                 if(state.points.length > 0 || state.isAddingNew) {
                     btnSave.innerText = "FINISH";
@@ -470,10 +420,8 @@ export class RadarUI {
                 }
             }
             if(btnDel) btnDel.disabled = false;
-            
             const ptEditor = this.root.getElementById('pt-editor');
             if (ptEditor) { ptEditor.style.opacity = '1'; ptEditor.style.pointerEvents = 'auto'; }
-
         } else {
             if(btnSave) {
                 if(state.points.length > 0 || state.isAddingNew) {
@@ -485,20 +433,16 @@ export class RadarUI {
                 }
             }
             if(btnDel) btnDel.disabled = true;
-            
             const isAdding = state.isAddingNew || state.points.length > 0;
             if (!isAdding) {
                 if (inName) inName.value = '';
                 if (inDelay) inDelay.value = '';
             }
-            
             if (ptX) ptX.value = '';
             if (ptY) ptY.value = '';
-            
             const ptEditor = this.root.getElementById('pt-editor');
             if (ptEditor) { ptEditor.style.opacity = '0.3'; ptEditor.style.pointerEvents = 'none'; }
         }
-
         const btnFreeze = this.root.getElementById('btn-freeze');
         if (btnFreeze) {
             if (state.calibration && state.calibration.active) {
@@ -512,7 +456,6 @@ export class RadarUI {
                 });
             }
         }
-        
         if (inDelay) {
             if (state.type === 'exclude_zones' || state.type === 'monitor_zones' || state.fov_edit_mode) { 
                 inDelay.disabled = true; 
@@ -527,7 +470,6 @@ export class RadarUI {
         if (btnHwMode) {
             if (state.editMode === 'layout' && state.fov_edit_mode && state.radar_zone_type === 'hardware_zones') {
                 btnHwMode.style.display = 'inline-flex'; 
-                
                 let hwMode = 2;
                 if (state.layoutChanges && state.layoutChanges.hw_zone_mode !== undefined) {
                     hwMode = parseInt(state.layoutChanges.hw_zone_mode);
@@ -535,7 +477,6 @@ export class RadarUI {
                     const radarLayout = (state.data[state.radar] && state.data[state.radar].layout) || {};
                     hwMode = radarLayout.hw_zone_mode !== undefined ? parseInt(radarLayout.hw_zone_mode) : 2;
                 }
-                
                 if (hwMode === 1) {
                     btnHwMode.innerText = 'HW DETECT';
                     btnHwMode.style.background = '#00BFFF'; 
@@ -548,11 +489,9 @@ export class RadarUI {
             }
         }
     }
-
     updateSettingsInputs(state) {
         if (!state || !state.data) return;
         const conf = state.data.global_config || {};
-        
         const bindControl = (sliderId, labelId, btnMinusId, btnPlusId, configKey, defVal, unit) => {
             const slider = this.root.getElementById(sliderId);
             const lbl = this.root.getElementById(labelId);
@@ -581,17 +520,14 @@ export class RadarUI {
         bindControl('set-interval-range', 'val-interval', 'btn-int-minus', 'btn-int-plus', 'update_interval', 0.1, 's');
         bindControl('set-merge-range', 'val-merge', 'btn-mrg-minus', 'btn-mrg-plus', 'merge_distance', 0.8, 'm');
         bindControl('set-target-range', 'val-target', 'btn-tgt-minus', 'btn-tgt-plus', 'target_height', 1.5, 'm');
-
         const colorInput = this.root.getElementById('set-fused-color');
         const colorLabel = this.root.getElementById('val-fused-color');
         if (colorInput) {
             const curColor = conf.fused_color || '#FFD700';
-            
             if (this.root.activeElement !== colorInput) {
                 colorInput.value = curColor;
             }
             if (colorLabel) colorLabel.innerText = curColor;
-
             colorInput.onchange = (e) => {
                 const newColor = e.target.value;
                 if(colorLabel) colorLabel.innerText = newColor;
@@ -601,11 +537,9 @@ export class RadarUI {
             };
         }
     }
-
     updateLayoutInputs(state, hass) {
         if (!state.radar) return;
         const rName = state.radar;
-        
         const getVal = (key) => {
             if (state.layoutChanges && state.layoutChanges[key] !== undefined) return state.layoutChanges[key];
             const radarData = (state.data && state.data[rName]) || {};
@@ -616,7 +550,6 @@ export class RadarUI {
             if (key === 'rotation') return 0;
             return 50; 
         };
-
         const setVal = (id, val) => { 
             const el = this.root.getElementById(id); 
             if (el && this.root.activeElement !== el) { 
@@ -629,67 +562,53 @@ export class RadarUI {
         setVal('layout-sx', getVal('scale_x'));
         setVal('layout-sy', getVal('scale_y'));
         setVal('layout-rot', getVal('rotation'));
-        
         let mir = false;
         if (state.layoutChanges?.mirror_x !== undefined) mir = state.layoutChanges.mirror_x;
         else if (state.data[rName]?.layout?.mirror_x !== undefined) mir = state.data[rName].layout.mirror_x;
         setVal('layout-mirror', mir);
-        
         let d3 = false;
         if (state.layoutChanges?.enable_3d !== undefined) d3 = state.layoutChanges.enable_3d;
         else if (state.data[rName]?.layout?.enable_3d !== undefined) d3 = state.data[rName].layout.enable_3d;
         setVal('layout-3d', d3);
-
         const cbCeiling = this.root.getElementById('layout-ceiling');
         if (cbCeiling) {
             const caps = (state.data[rName] && state.data[rName].capabilities) || {};
             const supported = caps.supported_mounts || ['wall', 'ceiling'];
-
             if (!supported.includes('ceiling')) {
                 if (cbCeiling.checked !== false) cbCeiling.checked = false;
                 if (!cbCeiling.disabled) cbCeiling.disabled = true;
                 cbCeiling.title = "硬件限制：该雷达型号不支持顶装模式";
                 if (cbCeiling.parentElement) cbCeiling.parentElement.style.opacity = "0.5";
                 cbCeiling.style.cursor = "not-allowed";
-                
                 if (state.layoutChanges && state.layoutChanges.ceiling_mount !== undefined) delete state.layoutChanges.ceiling_mount;
             } else {
                 if (cbCeiling.disabled) cbCeiling.disabled = false;
                 cbCeiling.title = "勾选后切换为顶装模式";
                 if (cbCeiling.parentElement) cbCeiling.parentElement.style.opacity = "1";
                 cbCeiling.style.cursor = "pointer";
-
                 let finalChecked = false;
-                
                 if (state.data[rName]?.layout?.ceiling_mount !== undefined) {
                     finalChecked = state.data[rName].layout.ceiling_mount; 
                 }
-                
                 if (caps.current_mount !== undefined) {
                     finalChecked = (caps.current_mount === 'ceiling'); 
                 }
-
                 const entId = `select.${rName.toLowerCase()}_install_mode`;
                 if (hass && hass.states[entId]) {
                     finalChecked = (hass.states[entId].state.toLowerCase() === 'ceiling');
                 }
-                
                 if (state.layoutChanges && state.layoutChanges.ceiling_mount !== undefined) {
                     finalChecked = state.layoutChanges.ceiling_mount; 
                 }
-
                 if (cbCeiling.checked !== finalChecked) {
                     cbCeiling.checked = finalChecked;
                 }
             }
         }
-        
         const grpHeight = this.root.getElementById('group-height');
-		
         if (grpHeight) grpHeight.style.display = d3 ? 'flex' : 'none';
         setVal('layout-h', getVal('mount_height'));
     }
-
     updateRadarList(state, config) {
         const sel = this.root.getElementById('sel-radar');
         if (!sel) return;

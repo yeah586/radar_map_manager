@@ -1,3 +1,4 @@
+
 const EDITOR_I18N = {
     "hw_limit": { "zh": "⚠️ 操作被拒绝：当前雷达底层屏蔽区已达上限 ({0}个)。", "en": "⚠️ Operation denied: Hardware blind zones reached the limit of {0}." },
     "not_supported": { "zh": "⚠️ 兼容性提示：该功能仅支持RMM专用雷达\n\n💡 您可以通过MONITOR或者EXCLUDE区域设置进行软件区域过滤。", "en": "⚠️ Compatibility Note: This feature only supports RMM exclusive radars.\n💡 You can use MONITOR or EXCLUDE for software filtering." },
@@ -24,7 +25,6 @@ const EDITOR_I18N = {
     "sel_radar": { "zh": "请先选择一个雷达。", "en": "Please select a radar first." },
     "no_t1": { "zh": "未在当前雷达上找到活跃的 Target 1。无法冻结校准。", "en": "No active Target 1 found on this radar. Cannot freeze." }
 };
-
 export class RadarEditor {
     constructor(host, root, math, ui, renderer) {
         this.host = host; 
@@ -34,7 +34,6 @@ export class RadarEditor {
         this.renderer = renderer; 
         this.lastClickTime = 0;
         this.isAddingNew = false; 
-        
         this.t = (key, arg0 = "") => {
             const lang = (this.host.state.hass && this.host.state.hass.language) || 'en';
             const isZh = lang.startsWith('zh');
@@ -45,10 +44,8 @@ export class RadarEditor {
             return key;
         };
     }
-
     bindEvents(state, config, callbacks) {
         if (!callbacks) return;
-
         const panel = this.root.getElementById('panel');
         const header = this.root.getElementById('panel-header');
         const clickLayer = this.root.getElementById('click-layer');
@@ -56,24 +53,20 @@ export class RadarEditor {
         const ptY = this.root.getElementById('pt-y');
         const inName = this.root.getElementById('in-name');
         const inDelay = this.root.getElementById('in-delay');
-		
 		const selRadarType = this.root.getElementById('sel-radar-zone-type');
         if (selRadarType) {
             if (!state.radar_zone_type) state.radar_zone_type = 'monitor_zones';
             selRadarType.value = state.radar_zone_type;
-            
             selRadarType.onchange = (e) => {
                 state.radar_zone_type = e.target.value;
                 exitAddMode();
                 if(callbacks.resetSelection) callbacks.resetSelection();
             };
         }
-        
         if (panel) { 
             const stop = (e) => e.stopPropagation(); 
             ['click', 'mousedown', 'touchstart', 'pointerdown', 'dblclick'].forEach(evt => panel.addEventListener(evt, stop)); 
         }
-
         this.root.addEventListener('pointermove', (e) => {
             if (!state.editing) return;
             const rootEl = this.root.getElementById('root');
@@ -81,19 +74,15 @@ export class RadarEditor {
                 const rect = rootEl.getBoundingClientRect();
                 const mx = parseFloat((((e.clientX - rect.left) / rect.width) * 100).toFixed(2));
                 const my = parseFloat((((e.clientY - rect.top) / rect.height) * 100).toFixed(2));
-                
                 state.mousePos = { x: mx, y: my };
-
                 if (state.isAddingNew || (state.points && state.points.length > 0)) {
                     this.renderer.draw(state, config, state.hass);
                 }
             }
         }, { capture: true });
-
         if (header && panel) {
             let isDraggingPanel = false; 
             let startX, startY, initialLeft, initialTop;
-
             const startDrag = (clientX, clientY) => {
                 isDraggingPanel = true; 
                 startX = clientX; 
@@ -105,7 +94,6 @@ export class RadarEditor {
                 initialTop = rect.top - parentRect.top; 
                 panel.style.cursor = 'grabbing';
             };
-
             const moveDrag = (clientX, clientY) => {
                 if (!isDraggingPanel) return;
                 const dx = clientX - startX; 
@@ -113,21 +101,17 @@ export class RadarEditor {
                 let newLeft = initialLeft + dx; 
                 let newTop = initialTop + dy;
                 const parent = panel.offsetParent || document.body;
-                
                 newLeft = Math.max(0, Math.min(newLeft, parent.clientWidth - panel.offsetWidth)); 
                 newTop = Math.max(0, Math.min(newTop, parent.clientHeight - panel.offsetHeight));
-                
                 panel.style.left = `${newLeft}px`; 
                 panel.style.top = `${newTop}px`;
             };
-
             const endDrag = () => { 
                 if (isDraggingPanel) { 
                     isDraggingPanel = false; 
                     panel.style.cursor = 'auto'; 
                 } 
             };
-
             header.onmousedown = (e) => { 
                 if (['SELECT','BUTTON','INPUT','SPAN'].includes(e.target.tagName)) return;
                 if (e.target.classList.contains('win-btn')) return;
@@ -136,7 +120,6 @@ export class RadarEditor {
             };
             document.addEventListener('mousemove', (e) => moveDrag(e.clientX, e.clientY)); 
             document.addEventListener('mouseup', endDrag);
-
             header.ontouchstart = (e) => {
                 if (['SELECT','BUTTON','INPUT','SPAN'].includes(e.target.tagName)) return;
                 if (e.target.classList.contains('win-btn')) return;
@@ -152,18 +135,14 @@ export class RadarEditor {
             }, { passive: false });
             document.addEventListener('touchend', endDrag);
         }
-
         const bindClick = (id, fn) => { const el = this.root.getElementById(id); if (el) el.onclick = fn; };
-        
         const exitAddMode = () => {
             this.isAddingNew = false; 
             state.isAddingNew = false; 
             state.mousePos = null;
         };
-
         bindClick('btn-toggle-mode', () => { exitAddMode(); if(callbacks.onToggleEditMode) callbacks.onToggleEditMode(); }); 
         bindClick('btn-close-panel', () => { exitAddMode(); if(callbacks.onToggleEditMode) callbacks.onToggleEditMode(); });
-        
         bindClick('btn-min-panel', () => {
             if (panel) {
                 panel.classList.toggle('collapsed');
@@ -171,50 +150,37 @@ export class RadarEditor {
                 if(btn) btn.innerText = panel.classList.contains('collapsed') ? '□' : '_';
             }
         });
-
         bindClick('btn-mode-layout', () => { exitAddMode(); state.type = 'monitor_zones'; if(callbacks.onModeChange) callbacks.onModeChange('layout'); });
         bindClick('btn-mode-zone', () => { exitAddMode(); state.type = 'include_zones'; if(callbacks.onModeChange) callbacks.onModeChange('zone'); }); 
         bindClick('btn-mode-settings', () => { exitAddMode(); if(callbacks.onModeChange) callbacks.onModeChange('settings'); });
-        
         bindClick('btn-edit-fov', () => { 
             if (state.fov_edit_mode) {
-                
                 if (state.hasUnsavedChanges) {
-
                     const isZoneEdited = (state.selectedIndex !== null) || (state.points && state.points.length >= 3);
-                    
                     if (isZoneEdited) {
                         if (callbacks.onSave) callbacks.onSave();
                     }
-                    
                     if (callbacks.onSaveLayout) callbacks.onSaveLayout();
                 }
-
                 state.selectedIndex = null;
                 state.selectedPointIndex = null;
             }
-            
             exitAddMode();
             if(callbacks.onToggleFOV) callbacks.onToggleFOV(); 
         });
-        // =========================================================
-        
         bindLayoutInput(this, 'layout-x', 'origin_x', callbacks); 
         bindLayoutInput(this, 'layout-y', 'origin_y', callbacks); 
         bindLayoutInput(this, 'layout-rot', 'rotation', callbacks); 
         bindLayoutInput(this, 'layout-sx', 'scale_x', callbacks); 
         bindLayoutInput(this, 'layout-sy', 'scale_y', callbacks);
         bindLayoutInput(this, 'layout-h', 'mount_height', callbacks);
-        
         bindLayoutInput(this, 'layout-ceiling', 'ceiling_mount', callbacks, true);
         bindLayoutInput(this, 'layout-mirror', 'mirror_x', callbacks, true); 
         bindLayoutInput(this, 'layout-3d', 'enable_3d', callbacks, true); 
-        
         bindStepper(this, 'btn-sx-minus', 'layout-sx', -0.1, callbacks, 'scale_x');
         bindStepper(this, 'btn-sx-plus', 'layout-sx', 0.1, callbacks, 'scale_x');
         bindStepper(this, 'btn-sy-minus', 'layout-sy', -0.1, callbacks, 'scale_y');
         bindStepper(this, 'btn-sy-plus', 'layout-sy', 0.1, callbacks, 'scale_y');
-
         bindClick('btn-calc-ax', () => {
             const elSy = this.root.getElementById('layout-sy');
             if(elSy && state.aspectRatio) {
@@ -233,17 +199,13 @@ export class RadarEditor {
                 if(callbacks.onLayoutParamChange) callbacks.onLayoutParamChange('scale_y', sy);
             }
         });
-
         bindClick('btn-save-layout', callbacks.onSaveLayout); 
         bindClick('btn-freeze', callbacks.onCalibrationToggle); 
         bindClick('btn-cancel-layout', callbacks.onCancelLayout);
-
         bindClick('btn-add-radar', () => {
             if (document.getElementById('rmm-add-modal-overlay')) return;
-
-            const existingRadars = Object.keys(state.data || {}).filter(k => k !== 'global_zones' && k !== 'global_config');
+            const existingRadars = Object.keys(state.data || {}).filter(k => !['global_zones', 'global_config', 'fused_targets'].includes(k));
             const discovered = [];
-
             if (state.hass && state.hass.states) {
                 Object.keys(state.hass.states).forEach(entity_id => {
                     if (entity_id.startsWith('sensor.') && entity_id.endsWith('_presence_target_count')) {
@@ -254,16 +216,12 @@ export class RadarEditor {
                     }
                 });
             }
-
             const modalOverlay = document.createElement('div');
             modalOverlay.id = 'rmm-add-modal-overlay';
             modalOverlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; display:flex; justify-content:center; align-items:center; font-family:-apple-system, BlinkMacSystemFont, sans-serif;";
-            
             const modalBox = document.createElement('div');
             modalBox.style.cssText = "background:var(--card-background-color, #fff); color:var(--primary-text-color, #333); width:360px; max-width:90%; padding:24px; border-radius:12px; box-shadow:0 8px 30px rgba(0,0,0,0.3);";
-            
             let html = `<h3 style="margin:top:0; margin-bottom:20px; font-size:18px; color:var(--primary-text-color, #333);">${this.t('modal_title')}</h3>`;
-            
             if (discovered.length > 0) {
                 html += `<div style="font-size:13px; font-weight:bold; color:var(--secondary-text-color, #666); margin-bottom:10px;">${this.t('modal_discovered')}</div>`;
                 html += `<div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px;">`;
@@ -274,28 +232,21 @@ export class RadarEditor {
             } else {
                 html += `<div style="font-size:13px; color:var(--secondary-text-color, #888); margin-bottom:20px; font-style:italic; padding:10px; background:var(--secondary-background-color, #f5f5f5); border-radius:6px;">${this.t('modal_not_found')}</div>`;
             }
-
             html += `
                 <label style="display:block; font-size:13px; font-weight:bold; margin-bottom:5px;">${this.t('modal_lbl_name')}</label>
                 <input type="text" id="rmm-input-name" placeholder="例如: living_room" style="width:100%; box-sizing:border-box; padding:10px; border:1px solid var(--divider-color, #ccc); border-radius:6px; margin-bottom:15px; background:var(--secondary-background-color, #fafafa); color:var(--primary-text-color, #333); font-size:14px; outline:none;">
-                
                 <label style="display:block; font-size:13px; font-weight:bold; margin-bottom:5px;">${this.t('modal_lbl_pin')}</label>
                 <input type="text" id="rmm-input-pin" placeholder="输入控制台上的红底验证码" style="width:100%; box-sizing:border-box; padding:10px; border:1px solid var(--divider-color, #ccc); border-radius:6px; margin-bottom:25px; text-transform:uppercase; font-weight:bold; letter-spacing:1px; background:var(--secondary-background-color, #fafafa); color:var(--primary-text-color, #333); font-size:14px; outline:none;">
-                
                 <label style="display:block; font-size:13px; font-weight:bold; margin-bottom:5px;">${this.t('modal_lbl_ip')}</label>
                 <input type="text" id="rmm-input-ip" placeholder="例如: 192.168.1.100" style="width:100%; box-sizing:border-box; padding:10px; border:1px solid var(--divider-color, #ccc); border-radius:6px; margin-bottom:25px; background:var(--secondary-background-color, #fafafa); color:var(--primary-text-color, #333); font-size:14px; outline:none;">
-
                 <div style="display:flex; justify-content:flex-end; gap:12px;">
                     <button type="button" id="rmm-btn-cancel" style="padding:10px 18px; border:none; background:var(--disabled-text-color, #ccc); color:#fff; border-radius:6px; cursor:pointer; font-size:14px; font-weight:bold; transition:0.2s;">${this.t('modal_btn_cancel')}</button>
                     <button type="button" id="rmm-btn-confirm" style="padding:10px 18px; border:none; background:var(--primary-color, #03a9f4); color:#fff; border-radius:6px; cursor:pointer; font-size:14px; font-weight:bold; transition:0.2s;">${this.t('modal_btn_confirm')}</button>
                 </div>
             `;
-            
             modalBox.innerHTML = html;
             modalOverlay.appendChild(modalBox);
-            
             document.body.appendChild(modalOverlay);
-
             const escListener = (e) => {
                 if (e.key === 'Escape') {
                     modalOverlay.remove();
@@ -303,10 +254,8 @@ export class RadarEditor {
                 }
             };
             document.addEventListener('keydown', escListener);
-
             const inputName = modalBox.querySelector('#rmm-input-name');
             const inputPin = modalBox.querySelector('#rmm-input-pin');
-
             const discBtns = modalBox.querySelectorAll('.btn-discovered');
             discBtns.forEach(btn => {
                 btn.onclick = () => {
@@ -320,52 +269,41 @@ export class RadarEditor {
                     inputPin.focus();
                 };
             });
-
             modalBox.querySelector('#rmm-btn-cancel').onclick = () => {
                 modalOverlay.remove();
                 document.removeEventListener('keydown', escListener);
             };
-
             modalBox.querySelector('#rmm-btn-confirm').onclick = () => {
                 const nameField = modalBox.querySelector('#rmm-input-name');
                 const pinField = modalBox.querySelector('#rmm-input-pin');
                 const ipField = modalBox.querySelector('#rmm-input-ip');
-                
                 if (!nameField || !pinField) {
                     alert(this.t("err_input"));
                     return;
                 }
-
                 const rawName = nameField.value;
                 const rawPin = pinField.value;
                 const rawIp = ipField ? ipField.value.trim() : "";
-
                 if (!rawName || !rawName.trim()) {
                     alert(this.t("empty_name"));
                     nameField.focus();
                     return;
                 }
-
                 const lowerName = rawName.trim().toLowerCase();
                 const finalPin = rawPin.trim().toUpperCase(); 
-
                 console.log(`RMM Debug: 准备发送数据 - 名称: ${lowerName}, 密码: [${finalPin}]`);
-
                 if (state.data && state.data[lowerName]) { 
                     alert(this.t("dup_name", lowerName)); 
                     return; 
                 }
-
                 modalOverlay.remove();
                 document.removeEventListener('keydown', escListener);
-
                 const payload = { 
                     radar_name: lowerName, 
                     map_group: state.mapGroup || "default",
                     device_pin: finalPin, 
                     radar_ip: rawIp
                 };
-
                 state.hass.callService('radar_map_manager', 'add_radar', payload)
                 .then(() => {
                     console.log("RMM: 🚀 add_radar 请求发送成功！");
@@ -373,7 +311,6 @@ export class RadarEditor {
                 .catch(err => {
                     alert(this.t("ha_reject") + JSON.stringify(err));
                 });
-
                 setTimeout(() => {
                     if (!state.data[lowerName]) {
                         state.data[lowerName] = { layout: {}, monitor_zones: [], hardware_zones: [] }; 
@@ -387,7 +324,6 @@ export class RadarEditor {
                 }, 500);
             };
         });
-
         bindClick('btn-del-radar', () => {
             if(!state.radar || state.radar === 'rd_default') return alert(this.t("sel_radar"));
             if(confirm(this.t("del_radar", state.radar))) {
@@ -401,13 +337,11 @@ export class RadarEditor {
                 }, 500);
             }
         });
-
         const updatePointFromInput = () => {
             if (state.selectedIndex !== null && state.selectedPointIndex !== null && ptX && ptY) {
                 const xVal = parseFloat(ptX.value);
                 const yVal = parseFloat(ptY.value);
                 if (isNaN(xVal) || isNaN(yVal)) return;
-
                 const list = getActiveList(state);
                 if (list && list[state.selectedIndex]) { 
                     const z = list[state.selectedIndex];
@@ -423,7 +357,6 @@ export class RadarEditor {
         };
         if (ptX) ptX.oninput = updatePointFromInput; 
         if (ptY) ptY.oninput = updatePointFromInput;
-
         const updateZoneProps = () => {
             if (state.selectedIndex !== null && inName && inDelay) {
                 const list = getActiveList(state);
@@ -431,7 +364,6 @@ export class RadarEditor {
                     const z = list[state.selectedIndex];
                     const newName = inName.value.trim();
                     const newDelay = parseFloat(inDelay.value) || 0;
-                    
                     if (z.name !== newName || Math.abs(z.delay - newDelay) > 0.001) {
                         z.name = newName;
                         z.delay = newDelay;
@@ -443,7 +375,6 @@ export class RadarEditor {
         };
         if (inName) inName.oninput = updateZoneProps;
         if (inDelay) inDelay.oninput = updateZoneProps;
-
         this.root.addEventListener('zone-select', (e) => {
             exitAddMode();
             if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT')) {
@@ -455,7 +386,6 @@ export class RadarEditor {
                 });
             }, 20);
         });
-
         bindClick('btn-cancel-edit', () => {
             if (state.isAddingNew || state.points.length > 0) {
                 exitAddMode(); 
@@ -467,34 +397,26 @@ export class RadarEditor {
                 if(callbacks.resetSelection) callbacks.resetSelection();
             }
         });
-		
         bindClick('btn-hw-mode', () => {
             if (!state.radar) return;
-            
             let currentMode = 2;
             if (state.layoutChanges && state.layoutChanges.hw_zone_mode !== undefined) {
                 currentMode = parseInt(state.layoutChanges.hw_zone_mode);
             } else if (state.data[state.radar] && state.data[state.radar].layout && state.data[state.radar].layout.hw_zone_mode !== undefined) {
                 currentMode = parseInt(state.data[state.radar].layout.hw_zone_mode);
             }
-            
             const newMode = (currentMode === 1) ? 2 : 1; 
-
             if (callbacks.onLayoutParamChange) {
                 callbacks.onLayoutParamChange('hw_zone_mode', newMode);
             }
-            
             this.ui.updateStatus(state, config);
         });
-        // =================================================================
-
         bindClick('btn-del-zone', () => {
             if (confirm(this.t("del_zone"))) {
                 if(callbacks.onDelZone) callbacks.onDelZone();
                 exitAddMode();
             }
         });
-        
         const btnUndo = this.root.getElementById('btn-undo');
         if (btnUndo) {
             btnUndo.onclick = () => {
@@ -504,7 +426,6 @@ export class RadarEditor {
             };
         }
         bindClick('btn-clear', () => { if(callbacks.onClear) callbacks.onClear(); exitAddMode(); }); 
-
         const btnSave = this.root.getElementById('btn-save');
         if (btnSave) {
             btnSave.onclick = (e) => {
@@ -518,23 +439,18 @@ export class RadarEditor {
                         const caps = radarData.capabilities || {};
                         const maxHwZones = caps.max_hw_zones !== undefined ? caps.max_hw_zones : 3; 
                         const list = state.data[state.radar][state.radar_zone_type] || [];
-                        
                         if (list.length >= maxHwZones) {
                             alert(this.t("hw_limit", maxHwZones));
                             return; 
                         }
                     }
-
                     if(callbacks.resetSelection) callbacks.resetSelection(); 
-                    
                     this.isAddingNew = true;
                     state.isAddingNew = true; 
-                    
                     const inName = this.root.getElementById('in-name');
                     if (inName) {
                         const list = getActiveList(state) || [];
                         const nextIdx = list.length + 1; 
-                        
                         if (state.editMode === 'layout' && state.radar_zone_type === 'hardware_zones') {
                             inName.value = `HW ZONE ${nextIdx}`;
                         } else if (state.editMode === 'layout') {
@@ -543,7 +459,6 @@ export class RadarEditor {
                             inName.value = `Zone ${nextIdx}`; 
                         }
                     }
-
                     const rootEl = this.root.getElementById('root');
                     if (rootEl) {
                         const rect = rootEl.getBoundingClientRect();
@@ -552,13 +467,11 @@ export class RadarEditor {
                             y: parseFloat((((e.clientY - rect.top) / rect.height) * 100).toFixed(2))
                         };
                     }
-
                     this.ui.updateStatus(state, config); 
                     this.renderer.draw(state, config, state.hass);
                 }
             };
         }
-
         bindClick('btn-backup', () => {
             const dataStr = JSON.stringify(state.data, null, 2);
             const blob = new Blob([dataStr], { type: "application/json" });
@@ -587,7 +500,6 @@ export class RadarEditor {
                 fileInput.value = '';
             };
         }
-
         const selR = this.root.getElementById('sel-radar'); 
         if(selR) selR.onchange = (e) => {
             if (document.activeElement) document.activeElement.blur();
@@ -603,7 +515,6 @@ export class RadarEditor {
                 });
             }, 20);
         };
-
         const selType = this.root.getElementById('sel-type'); 
         if(selType) selType.onchange = (e) => {
             exitAddMode();
@@ -613,14 +524,11 @@ export class RadarEditor {
         if(cbMirror) cbMirror.onchange = (e) => { if(callbacks.onLayoutParamChange) callbacks.onLayoutParamChange('mirror_x', e.target.checked); };
         const cb3d = this.root.getElementById('layout-3d'); 
         if(cb3d) cb3d.onchange = (e) => { if(callbacks.onLayoutParamChange) callbacks.onLayoutParamChange('enable_3d', e.target.checked); };
-
         if (clickLayer) this.setupPointerEvents(clickLayer, state, config, callbacks);
     }
-    
     _checkUnsaved(state, callbacks, onProceed, onCancel) {
         let isDirty = false;
         let saveAction = 'none';
-        
         if (state.hasUnsavedChanges) { 
             isDirty = true;
             if (state.editMode === 'layout' && !state.fov_edit_mode) {
@@ -629,7 +537,6 @@ export class RadarEditor {
                 saveAction = 'zone';
             }
         }
-
         const inName = this.root.getElementById('in-name');
         const inDelay = this.root.getElementById('in-delay');
         if (state.selectedIndex !== null && inName && !isDirty) {
@@ -646,7 +553,6 @@ export class RadarEditor {
                 }
             }
         }
-
         if (!isDirty && state.editMode === 'layout' && state.radar && state.layoutChanges) {
             const currentLayout = (state.data[state.radar] && state.data[state.radar].layout) || {};
             for (const [key, val] of Object.entries(state.layoutChanges)) {
@@ -666,7 +572,6 @@ export class RadarEditor {
                 }
             }
         }
-
         if (isDirty) {
             if (confirm(this.t("unsaved"))) {
                 if (saveAction === 'layout' && callbacks.onSaveLayout) callbacks.onSaveLayout();
@@ -681,7 +586,6 @@ export class RadarEditor {
             if (onProceed) onProceed();
         }
     }
-
     setupPointerEvents(clickLayer, state, config, callbacks) {
         const getArea = (points) => {
             if (!points || points.length < 3) return 0;
@@ -700,27 +604,22 @@ export class RadarEditor {
             return inside;
         };
         const hitThreshold = (config.handle_radius || 4) * 1.5;
-
         clickLayer.onpointermove = (e) => {
             if (!state.editing) return;
             const rootEl = this.host.shadowRoot.getElementById('root'); if (!rootEl) return; 
             const rect = rootEl.getBoundingClientRect();
             const mx = parseFloat((((e.clientX - rect.left) / rect.width) * 100).toFixed(2)); 
             const my = parseFloat((((e.clientY - rect.top) / rect.height) * 100).toFixed(2));
-			
 			state.mousePos = { x: mx, y: my };
-
             if (state.dragState.isDragging) {
                 e.preventDefault();
                 clickLayer.style.cursor = "grabbing";
-                
                 if (!state.dragState.hasMoved) {
                     state.dragState.hasMoved = true;
                     if (state.dragState.type === 'point') {
                         state.hasUnsavedChanges = true; 
                     }
                 }
-
                 if (state.dragState.type === 'calib_target' && state.calibration.map) {
                     state.calibration.map.x = mx; state.calibration.map.y = my;
                 }
@@ -760,7 +659,6 @@ export class RadarEditor {
 				this.renderer.draw(state, config, state.hass);
                 return;
             }
-
             let cursor = (this.isAddingNew || state.isAddingNew) ? "crosshair" : "default";
             if (!this.isAddingNew && !state.isAddingNew) {
                 const activeList = getActiveList(state);
@@ -775,7 +673,7 @@ export class RadarEditor {
                     if(hitPoint) break;
                 }
                 if (!hitPoint && state.editMode === 'layout' && !state.fov_edit_mode) {
-                    const radarNames = Object.keys(state.data).filter(k => !['global_zones','global_config','rd_default'].includes(k));
+                    const radarNames = Object.keys(state.data).filter(k => !['global_zones','global_config','rd_default','fused_targets'].includes(k));
                     for (const rName of radarNames) {
                         const cfg = this.renderer.getRadarConfig(state, rName, state.hass);
                         if (Math.abs(mx - cfg.origin_x) < 4 && Math.abs(my - cfg.origin_y) < 4) { cursor = "move"; break; }
@@ -791,29 +689,24 @@ export class RadarEditor {
                     }
                 }
             }
-
             clickLayer.style.cursor = cursor;
 			this.renderer.draw(state, config, state.hass);
         };
-
         clickLayer.onpointerdown = (e) => {
             if (!state.editing) return;
             e.preventDefault(); 
             const active = document.activeElement;
             if (active && (active.tagName === 'INPUT' || active.tagName === 'SELECT')) active.blur();
-
             const rootEl = this.host.shadowRoot.getElementById('root'); if (!rootEl) return; 
             const rect = rootEl.getBoundingClientRect();
             const mx = parseFloat((((e.clientX - rect.left) / rect.width) * 100).toFixed(2)); 
             const my = parseFloat((((e.clientY - rect.top) / rect.height) * 100).toFixed(2));
-
             if (this.isAddingNew || state.isAddingNew) {
                 state.points.push([mx, my]);
                 this.renderer.draw(state, config, state.hass); 
                 this.ui.updateStatus(state, config);
                 return;
             }
-
             if (state.calibration && state.calibration.active) {
                 if (state.calibration.map) {
                     const tx = state.calibration.map.x; const ty = state.calibration.map.y;
@@ -825,7 +718,6 @@ export class RadarEditor {
                 }
                 return;
             }
-
             if (state.editMode === 'layout' && !state.fov_edit_mode) {
                 if (state.radar) {
                     const cfg = this.renderer.getRadarConfig(state, state.radar, state.hass);
@@ -860,10 +752,8 @@ export class RadarEditor {
                 }
                 return; 
             }
-
             const now = Date.now(); const isDbl = (now - this.lastClickTime < 300); this.lastClickTime = now; 
             let hit = false; const activeList = getActiveList(state); 
-            
             for(let i=0; i<activeList.length; i++) {
                 const z = activeList[i]; const pts = Array.isArray(z) ? z : z.points;
                 for(let j=0; j<pts.length; j++) {
@@ -880,7 +770,6 @@ export class RadarEditor {
                 }
                 if(hit) break;
             }
-            
             if (!hit) {
                 let hitCandidates = [];
                 for (let i = 0; i < activeList.length; i++) {
@@ -898,7 +787,6 @@ export class RadarEditor {
                     hit = true;
                 }
             }
-            
             if (!hit) {
                 if (state.selectedIndex !== null) { 
                     if(callbacks.resetSelection) callbacks.resetSelection(); 
@@ -906,7 +794,6 @@ export class RadarEditor {
                 } 
             }
         };
-
         clickLayer.onpointerup = (e) => {
              if (state.dragState.isDragging) {
                 const rootEl = this.host.shadowRoot.getElementById('root');
@@ -916,45 +803,35 @@ export class RadarEditor {
                     mx = parseFloat((((e.clientX - rect.left) / rect.width) * 100).toFixed(2));
                     my = parseFloat((((e.clientY - rect.top) / rect.height) * 100).toFixed(2));
                 }
-
                 if (state.dragState.type === 'calib_target' && state.calibration.raw) {
                     let rx_m = state.calibration.raw.x / 1000.0;
                     let ry_m = state.calibration.raw.y / 1000.0;
                     const cfg = this.renderer.getRadarConfig(state, state.radar, state.hass);
                     if (cfg.mirror_x) rx_m = -rx_m;
-
                     const dx = mx - cfg.origin_x;
                     const dy = my - cfg.origin_y;
-
                     const rad = (cfg.rotation - 90) * Math.PI / 180.0;
                     const yVecX = Math.cos(rad);
                     const yVecY = Math.sin(rad);
                     const xVecX = Math.cos(rad + Math.PI / 2);
                     const xVecY = Math.sin(rad + Math.PI / 2);
-
                     const projX = dx * xVecX + dy * xVecY;
                     const projY = dx * yVecX + dy * yVecY;
-
                     let newSx = cfg.scale_x;
                     let newSy = cfg.scale_y;
-
                     if (Math.abs(rx_m) > 0.1) newSx = Math.abs(projX / rx_m);
                     if (Math.abs(ry_m) > 0.1) newSy = Math.abs(projY / ry_m);
-
                     newSx = parseFloat(newSx.toFixed(2));
                     newSy = parseFloat(newSy.toFixed(2));
-
                     if (callbacks.onLayoutParamChange) {
                         callbacks.onLayoutParamChange('scale_x', newSx);
                         callbacks.onLayoutParamChange('scale_y', newSy);
                     }
-                    
                     const elSx = this.root.getElementById('layout-sx');
                     const elSy = this.root.getElementById('layout-sy');
                     if (elSx) elSx.value = newSx;
                     if (elSy) elSy.value = newSy;
                 }
-
                 if (state.dragState.hasMoved) {
                     if (state.dragState.startSnapshot) { 
                         state.historyStack.push(JSON.parse(state.dragState.startSnapshot)); 
@@ -975,7 +852,6 @@ export class RadarEditor {
         };
     }
 }
-
 function getActiveList(state) {
     if (state.editMode === 'layout') {
         if (!state.data[state.radar]) return [];
@@ -986,7 +862,6 @@ function getActiveList(state) {
         return state.data.global_zones[state.type] || [];
     }
 }
-
 function bindStepper(editor, btnId, inputId, step, callbacks, paramKey) {
     const btn = editor.root.getElementById(btnId);
     const input = editor.root.getElementById(inputId);
@@ -1000,7 +875,6 @@ function bindStepper(editor, btnId, inputId, step, callbacks, paramKey) {
         };
     }
 }
-
 function bindLayoutInput(editor, id, key, callbacks, isCheck = false) {
     const el = editor.root.getElementById(id);
     if (el) el.onchange = (e) => { 
