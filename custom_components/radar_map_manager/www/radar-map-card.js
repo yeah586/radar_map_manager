@@ -155,6 +155,7 @@ class RadarMapCardNative extends HTMLElement {
         if (this.ignoreUpdatesUntil > 0 && Date.now() < this.ignoreUpdatesUntil) return;
         const isFrozen = this.state.calibration && this.state.calibration.active;
         if (!this.state.hasUnsavedChanges && !isFrozen) {
+            this.fullRawData = JSON.parse(JSON.stringify(rawData));
             this.state.data = this._adaptV2ToV1(rawData);
             this.state.historyStack = [];
             this.initWebSockets();
@@ -529,24 +530,28 @@ class RadarMapCardNative extends HTMLElement {
     }
     saveToBackend() {
         this.ignoreUpdatesUntil = Date.now() + 2000;
-        const ent = this._hass.states['sensor.radar_map_manager'];
         let fullData = { radars: {}, maps: {} };
-        if (ent && ent.attributes.data_json) {
-            try { fullData = JSON.parse(ent.attributes.data_json); } catch(e) {}
+        if (this.fullRawData) {
+            fullData = JSON.parse(JSON.stringify(this.fullRawData));
+        } else {
+            const ent = this._hass.states['sensor.radar_map_manager'];
+            if (ent && ent.attributes.data_json) {
+                try { fullData = JSON.parse(ent.attributes.data_json); } catch(e) {}
+            }
         }
         const currentMapGroup = this.state.mapGroup;
         if (!fullData.maps) fullData.maps = {};
         if (!fullData.maps[currentMapGroup]) fullData.maps[currentMapGroup] = {};
-        fullData.maps[currentMapGroup].zones = this.state.data.global_zones;
+        fullData.maps[currentMapGroup].zones = JSON.parse(JSON.stringify(this.state.data.global_zones));
         if (!fullData.radars) fullData.radars = {};
         Object.keys(this.state.data).forEach(key => {
             if (key === 'global_zones' || key === 'global_config' || key === 'fused_targets') return;
             if (!fullData.radars[key]) fullData.radars[key] = { map_group: currentMapGroup };
             if (this.state.data[key].monitor_zones) {
-                fullData.radars[key].monitor_zones = this.state.data[key].monitor_zones;
+                fullData.radars[key].monitor_zones = JSON.parse(JSON.stringify(this.state.data[key].monitor_zones));
             }
             if (this.state.data[key].hardware_zones) {
-                fullData.radars[key].hardware_zones = this.state.data[key].hardware_zones;
+                fullData.radars[key].hardware_zones = JSON.parse(JSON.stringify(this.state.data[key].hardware_zones));
             }
         });
         this._hass.callService('radar_map_manager', 'import_config', {

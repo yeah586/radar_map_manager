@@ -229,6 +229,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         delay = call.data.get("delay", 0)
         name = call.data.get("name", "New Zone")
         map_group = call.data.get("map_group")
+        import copy
+        if "maps" in coordinator.data:
+            default_map = coordinator.data.get("maps", {}).get("default")
+            if default_map:
+                for mg, md in coordinator.data["maps"].items():
+                    if mg == "default": continue
+                    if id(md) == id(default_map):
+                        coordinator.data["maps"][mg] = copy.deepcopy(default_map)
+                    elif "zones" in md and "zones" in default_map and id(md.get("zones")) == id(default_map.get("zones")):
+                        md["zones"] = copy.deepcopy(default_map["zones"])
         if isinstance(points, list):
             if len(points) == 0 or isinstance(points[0], dict):
                 zone_data = points
@@ -236,7 +246,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 zone_data = [{"points": points, "delay": delay, "name": name}]
         else:
             zone_data = points
-        await coordinator.async_update_zone(radar_name, zone_type, zone_data, map_group)
+        zone_data = copy.deepcopy(zone_data)
+        if not radar_name:
+            target_map = map_group if map_group else "default"
+            if target_map not in coordinator.data["maps"]: coordinator.data["maps"][target_map] = {"zones": {}}
+            if "zones" not in coordinator.data["maps"][target_map]: coordinator.data["maps"][target_map]["zones"] = {}
+            coordinator.data["maps"][target_map]["zones"][zone_type] = zone_data
+            await coordinator.async_save()
+        else:
+            await coordinator.async_update_zone(radar_name, zone_type, zone_data, map_group)
         await processor.update(force=True)
     async def handle_update_radar_layout(call: ServiceCall):
         radar_name = call.data["radar_name"]
