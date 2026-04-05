@@ -229,7 +229,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         delay = call.data.get("delay", 0)
         name = call.data.get("name", "New Zone")
         map_group = call.data.get("map_group")
-        zone_data = {"points": points, "delay": delay, "name": name}
+        if isinstance(points, list):
+            if len(points) == 0 or isinstance(points[0], dict):
+                zone_data = points
+            else:
+                zone_data = [{"points": points, "delay": delay, "name": name}]
+        else:
+            zone_data = points
         await coordinator.async_update_zone(radar_name, zone_type, zone_data, map_group)
         await processor.update(force=True)
     async def handle_update_radar_layout(call: ServiceCall):
@@ -251,8 +257,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         try:
             json_str = call.data["config_json"]
             new_data = json.loads(json_str)
+            if "radars" not in new_data and "maps" not in new_data:
+                _LOGGER.info("RMM: 检测到旧版备份文件，正在自动迁移为多户型 (default) 结构...")
+                migrated_data = {
+                    "radars": {},
+                    "maps": {
+                        "default": {
+                            "zones": new_data.get("global_zones", {})
+                        }
+                    },
+                    "global_config": new_data.get("global_config", {})
+                }
+                for k, v in new_data.items():
+                    if k not in ["global_zones", "global_config", "maps", "radars"]:
+                        migrated_data["radars"][k] = v
+                new_data = migrated_data
             if "radars" not in new_data or "maps" not in new_data:
-                raise ValueError("Invalid JSON format")
+                raise ValueError("Invalid JSON format: missing radars or maps")
             coordinator.data = new_data
             await coordinator.async_save()
             await broadcast_hw_zones()
