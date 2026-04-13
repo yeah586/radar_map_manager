@@ -387,10 +387,11 @@ export class RadarRenderer {
                 targetsToDraw.forEach(rObj => {
                     const rName = rObj.name;
                     const cfg = this.getRadarConfig(state, rName, hass);
+                    const isSelected = (rName === state.radar); 
                     const rData = state.data[rName] || {};
                     const maxT = (rData.capabilities && rData.capabilities.max_targets) ? rData.capabilities.max_targets : 5;
                     for (let i = 1; i <= maxT; i++) {
-                        this.processTarget(hass, rName, i, cfg, targetRadius, showLabels, userColors, defColors, null, layer, currentActiveIds);
+                        this.processTarget(hass, rName, i, cfg, targetRadius, showLabels, userColors, defColors, null, layer, currentActiveIds, isSelected);
                     }
                 });
             }
@@ -401,7 +402,7 @@ export class RadarRenderer {
         });
         }
     }
-    processTarget(hass, rName, i, cfg, radius, showLbl, uCols, dCols, unitOverride, layer, currentActiveIds) {
+    processTarget(hass, rName, i, cfg, radius, showLbl, uCols, dCols, unitOverride, layer, currentActiveIds, isSelected) {
         const lowerName = rName.toLowerCase();
         let xs = hass.states[`sensor.${lowerName}_target_${i}_x`];
         let ys = hass.states[`sensor.${lowerName}_target_${i}_y`];
@@ -430,13 +431,13 @@ export class RadarRenderer {
             if (unit === 'cm') { xVal*=10; yVal*=10; zVal*=10; } 
             else if (unit === 'm') { xVal*=1000; yVal*=1000; zVal*=1000; }
             if (Math.abs(yVal) > 10) {
-                this.renderDot(layer, rName, i, xVal, yVal, zVal, cfg, radius, showLbl, uCols, dCols, is1D, currentActiveIds);
+                this.renderDot(layer, rName, i, xVal, yVal, zVal, cfg, radius, showLbl, uCols, dCols, is1D, currentActiveIds, isSelected);
                 return true;
             }
         }
         return false;
     }
-    renderDot(layer, rName, idx, xVal, yVal, zVal, cfg, r, showLbl, uCols, dCols, is1D, currentActiveIds) {
+    renderDot(layer, rName, idx, xVal, yVal, zVal, cfg, r, showLbl, uCols, dCols, is1D, currentActiveIds, isSelected) {
         const ground = this.math.calculate(cfg, { x: xVal, y: yVal, z: zVal });
         const shadowId = `shadow_${rName}_${idx}`;
         const dotId = `raw_${rName}_${idx}`;
@@ -463,8 +464,19 @@ export class RadarRenderer {
             const col = uCols[colorIdx] || dCols[colorIdx % dCols.length] || 'white';
             dot.style.background = col; dot.style.color = 'black'; dot.style.textShadow = '0 0 1px white';
             const fontSize = Math.max(8, r * 1.1); dot.style.fontSize = `${fontSize}px`;
-            dot.style.transition = 'left 0.15s linear, top 0.15s linear';
+            dot.style.transition = 'left 0.15s linear, top 0.15s linear, transform 0.2s, box-shadow 0.2s';
             layer.appendChild(dot);
+        }
+        if (isSelected) {
+            dot.style.border = '2px solid white';
+            dot.style.boxShadow = '0 0 12px white';
+            dot.style.transform = 'translate(-50%, -50%) scale(1.3)';
+            dot.style.zIndex = '100'; 
+        } else {
+            dot.style.border = '1px solid rgba(0,0,0,0.5)';
+            dot.style.boxShadow = 'none';
+            dot.style.transform = 'translate(-50%, -50%) scale(1)';
+            dot.style.zIndex = '10';
         }
         dot.innerText = showLbl ? (is1D ? "D" : ((idx > 9) ? "D" : idx)) : '';
         dot.style.left = ground.left + '%'; 
