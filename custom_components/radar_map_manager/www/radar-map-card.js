@@ -428,6 +428,10 @@ class RadarMapCardNative extends HTMLElement {
                         alert(that.editor.t("not_supported"));
                         return; 
                     }
+                    if (radarData.auth_passed === false) {
+                        alert(that.editor.t("auth_fail_alert"));
+                        return; 
+                    }
                     const caps = radarData.capabilities;
                     const maxHwZones = caps.max_hw_zones !== undefined ? caps.max_hw_zones : 3;
                     if (maxHwZones === 0) {

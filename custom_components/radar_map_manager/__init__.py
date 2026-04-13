@@ -126,6 +126,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     async def broadcast_hw_zones():
         if not coordinator.data or "radars" not in coordinator.data: return
         for r_name, r_conf in coordinator.data.get("radars", {}).items():
+            if not r_conf.get("auth_passed", False):
+                continue
             caps = r_conf.get("capabilities", {})
             max_zones = caps.get("max_hw_zones", 3)
             if max_zones == 0: continue 
@@ -234,6 +236,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         delay = call.data.get("delay", 0)
         name = call.data.get("name", "New Zone")
         map_group = call.data.get("map_group")
+        if radar_name and zone_type == "hardware_zones":
+            radar_conf = coordinator.data.get("radars", {}).get(radar_name, {})
+            if not radar_conf.get("auth_passed", False):
+                _LOGGER.warning(f"RMM: ⚠️ 非法请求拦截！雷达 '{radar_name}' 鉴权未通过，拒绝修改硬件屏蔽区！")
+                return
         import copy
         if "maps" in coordinator.data:
             default_map = coordinator.data.get("maps", {}).get("default")
@@ -336,6 +343,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                     "time": time.time(),
                     "real_caps": caps
                 }
+                if r_name in coordinator.data.get("radars", {}):
+                    coordinator.data["radars"][r_name]["auth_passed"] = False
+                    coordinator.data["radars"][r_name]["capabilities"] = degraded_caps
+                    coordinator._notify_listeners()
                 challenge_topic = f"rmm_radar/{r_name}/auth/challenge"
                 challenge_payload = json.dumps({"nonce": nonce})
                 hass.async_create_task(mqtt.async_publish(hass, challenge_topic, challenge_payload))
@@ -370,6 +381,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                     if is_manual_add:
                         hass.bus.async_fire("rmm_auth_result", {"success": True, "message": msg_text})
                     hass.data[DOMAIN]["pending_auth"].pop(r_name, None)
+                    if r_name in coordinator.data.get("radars", {}):
+                        coordinator.data["radars"][r_name]["auth_passed"] = False
+                        degraded_caps = pending.get("real_caps", {}).copy()
+                        degraded_caps["max_hw_zones"] = 0
+                        coordinator.data["radars"][r_name]["capabilities"] = degraded_caps
+                        hass.async_create_task(coordinator.async_save())
                     coordinator._notify_listeners()
                     return
                 secret = secret_str.encode('utf-8')
@@ -392,6 +409,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 else:
                     err_msg = get_t(hass, "auth_fail", r_name)
                     _LOGGER.warning(f"RMM: {err_msg}")
+                    if is_manual_add:
+                        hass.bus.async_fire("rmm_auth_result", {"success": False, "message": err_msg})
+                        pending["is_manual_add"] = False
         except Exception as e:
             _LOGGER.error(f"RMM: Failed to parse auth response: {e}")
     @callback
@@ -465,6 +485,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 if auth_resp.get("cmd") != "auth_ok":
                     await ws.close()
                     connection.send_error(msg["id"], "auth_failed", "Radar rejected PIN")
+                    if radar_name in coordinator.data.get("radars", {}):
+                        if coordinator.data["radars"][radar_name].get("auth_passed", True):
+                            _LOGGER.warning(f"RMM: WebSocket 鉴权失败，雷达 '{radar_name}' 密码已被硬件端修改，正在收回特权...")
+                            coordinator.data["radars"][radar_name]["auth_passed"] = False
+                            degraded_caps = coordinator.data["radars"][radar_name].get("capabilities", {}).copy()
+                            degraded_caps["max_hw_zones"] = 0
+                            coordinator.data["radars"][radar_name]["capabilities"] = degraded_caps
+                            hass.async_create_task(coordinator.async_save())
+                            coordinator._notify_listeners()
                     return
             else:
                 await ws.close()

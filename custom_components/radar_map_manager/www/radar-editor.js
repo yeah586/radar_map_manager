@@ -2,6 +2,7 @@
 const EDITOR_I18N = {
     "hw_limit": { "zh": "⚠️ 操作被拒绝：当前雷达底层屏蔽区已达上限 ({0}个)。", "en": "⚠️ Operation denied: Hardware blind zones reached the limit of {0}." },
     "not_supported": { "zh": "⚠️ 兼容性提示：该功能仅支持RMM专用雷达\n\n💡 您可以通过MONITOR或者EXCLUDE区域设置进行软件区域过滤。", "en": "⚠️ Compatibility Note: This feature only supports RMM exclusive radars.\n💡 You can use MONITOR or EXCLUDE for software filtering." },
+    "auth_fail_alert": { "zh": "⚠️ 鉴权失败：专属配对码错误或未提供，硬件级高级功能已锁定！\n\n请点击雷达列表旁的【✎】按钮输入正确的 PIN 码。", "en": "⚠️ Auth Failed: PIN incorrect or missing. Hardware advanced features locked!\n\nPlease click the [✎] button next to the radar list to enter the correct PIN." },
     "hw_unsupported": { "zh": "⚠️ 硬件限制：当前雷达 ({0}) 不支持硬件级屏蔽功能！", "en": "⚠️ Hardware Limit: Current radar ({0}) does not support hardware-level blind zones!" },
     "modal_title": { "zh": "📡 添加雷达", "en": "📡 Add Radar" },
     "modal_edit_title": { "zh": "📡 修改雷达参数", "en": "📡 Edit Radar Params" },
@@ -309,7 +310,7 @@ export class RadarEditor {
                 const lowerName = rawName.trim().toLowerCase();
                 const finalPin = rawPin.trim().toUpperCase(); 
                 console.log(`RMM Debug: 准备发送数据 - 名称: ${lowerName}, 密码: [${finalPin}]`);
-                if (state.data && state.data[lowerName]) { 
+                if (!isEdit && state.data && state.data[lowerName]) { 
                     alert(this.t("dup_name", lowerName)); 
                     return; 
                 }
@@ -471,6 +472,10 @@ export class RadarEditor {
                 else {
                     if (state.editMode === 'layout' && state.radar_zone_type === 'hardware_zones') {
                         const radarData = state.data[state.radar] || {};
+                        if (radarData.auth_passed === false) {
+                            alert(this.t("auth_fail_alert"));
+                            return;
+                        }
                         const caps = radarData.capabilities || {};
                         const maxHwZones = caps.max_hw_zones !== undefined ? caps.max_hw_zones : 3; 
                         const list = state.data[state.radar][state.radar_zone_type] || [];

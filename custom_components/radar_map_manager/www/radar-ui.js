@@ -591,17 +591,8 @@ export class RadarUI {
         const cbCeiling = this.root.getElementById('layout-ceiling');
         if (cbCeiling) {
             const caps = (state.data[rName] && state.data[rName].capabilities) || {};
-            const supported = caps.supported_mounts || ['wall', 'ceiling'];
-            if (!supported.includes('ceiling')) {
-                if (cbCeiling.checked !== false) cbCeiling.checked = false;
-                if (!cbCeiling.disabled) cbCeiling.disabled = true;
-                cbCeiling.title = "硬件限制：该雷达型号不支持顶装模式";
-                if (cbCeiling.parentElement) cbCeiling.parentElement.style.opacity = "0.5";
-                cbCeiling.style.cursor = "not-allowed";
-                if (state.layoutChanges && state.layoutChanges.ceiling_mount !== undefined) delete state.layoutChanges.ceiling_mount;
-            } else {
                 if (cbCeiling.disabled) cbCeiling.disabled = false;
-                cbCeiling.title = "勾选后切换为顶装模式";
+                cbCeiling.title = "勾选后切换为顶装模式 (非专属设备仅影响前端3D投影)";
                 if (cbCeiling.parentElement) cbCeiling.parentElement.style.opacity = "1";
                 cbCeiling.style.cursor = "pointer";
                 let finalChecked = false;
@@ -621,7 +612,6 @@ export class RadarUI {
                 if (cbCeiling.checked !== finalChecked) {
                     cbCeiling.checked = finalChecked;
                 }
-            }
         }
         const grpHeight = this.root.getElementById('group-height');
         if (grpHeight) grpHeight.style.display = d3 ? 'flex' : 'none';
