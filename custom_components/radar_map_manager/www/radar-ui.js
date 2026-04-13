@@ -272,6 +272,15 @@ export class RadarUI {
                             <input type="color" id="set-fused-color" style="flex:1; height:20px; cursor:pointer; padding:0; border:none;">
                             <span id="val-fused-color" style="width:50px; text-align:right; font-size:9px;">#FFD700</span>
                         </div>
+                        <div class="row">
+                            <label style="width:50px" title="Higher is smoother">Smooth</label>
+                            <div class="slider-row">
+                                <button class="stepper" id="btn-ema-minus">-</button>
+                                <input type="range" id="set-ema-range" min="1" max="10" step="1" class="slider">
+                                <button class="stepper" id="btn-ema-plus">+</button>
+                            </div>
+                            <span id="val-ema" style="width:30px; text-align:right">7 Lvl</span>
+                        </div>
                         <div class="separator" style="margin: 1px 0;"></div>
                         <div class="actions">
                             <button id="btn-backup" style="background:#1976D2; color:white;">Backup</button>
@@ -520,6 +529,7 @@ export class RadarUI {
         bindControl('set-interval-range', 'val-interval', 'btn-int-minus', 'btn-int-plus', 'update_interval', 0.1, 's');
         bindControl('set-merge-range', 'val-merge', 'btn-mrg-minus', 'btn-mrg-plus', 'merge_distance', 0.8, 'm');
         bindControl('set-target-range', 'val-target', 'btn-tgt-minus', 'btn-tgt-plus', 'target_height', 1.5, 'm');
+        bindControl('set-ema-range', 'val-ema', 'btn-ema-minus', 'btn-ema-plus', 'ema_smoothing_level', 7, ' Lvl');
         const colorInput = this.root.getElementById('set-fused-color');
         const colorLabel = this.root.getElementById('val-fused-color');
         if (colorInput) {

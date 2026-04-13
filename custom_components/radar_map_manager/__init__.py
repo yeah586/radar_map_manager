@@ -71,6 +71,7 @@ UPDATE_GLOBAL_CONFIG_SCHEMA = vol.Schema({
     vol.Optional("merge_distance"): vol.Coerce(float),
     vol.Optional("target_height"): vol.Coerce(float),
     vol.Optional("fused_color"): cv.string,
+    vol.Optional("ema_smoothing_level"): vol.Coerce(int),
 })
 def get_t(hass, key, *args):
     lang = hass.config.language if hasattr(hass.config, 'language') else 'en'
@@ -91,14 +92,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     hass.data[DOMAIN].setdefault("capabilities_cache", {})
     hass.data[DOMAIN].setdefault("pending_auth", {})
     hass.data[DOMAIN].setdefault("live_data", {})
-    www_dir = hass.config.path("custom_components/radar_map_manager/www")
-    if os.path.isdir(www_dir):
-        await hass.http.async_register_static_paths([
-            StaticPathConfig("/radar_map_manager", www_dir, cache_headers=False)
-        ])
+    www_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "www"))
+    if not os.path.isdir(www_dir):
+        www_dir = hass.config.path("custom_components", DOMAIN, "www")
+    if hasattr(hass.http, "register_static_path"):
+        hass.http.register_static_path("/radar_map_manager", www_dir, cache_headers=False)
+    else:
+        await hass.http.async_register_static_paths([StaticPathConfig("/radar_map_manager", www_dir, cache_headers=False)])
+    def _get_js_version():
         js_path = os.path.join(www_dir, "radar-map-card.js")
-        version = os.path.getmtime(js_path) if os.path.exists(js_path) else time.time()
-        add_extra_js_url(hass, f"/radar_map_manager/radar-map-card.js?v={version}")
+        return os.path.getmtime(js_path) if os.path.exists(js_path) else time.time()
+    js_version = await hass.async_add_executor_job(_get_js_version)
+    add_extra_js_url(hass, f"/radar_map_manager/radar-map-card.js?v={js_version}")
     coordinator = RadarCoordinator(hass)
     await coordinator.async_load()
     processor = RadarProcessor(hass, coordinator)
@@ -390,6 +395,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         except Exception as e:
             _LOGGER.error(f"RMM: Failed to parse auth response: {e}")
     @callback
+    async def async_on_yaw_delta(msg):
+        try:
+            payload = json.loads(msg.payload)
+            topic_parts = msg.topic.split('/')
+            if len(topic_parts) >= 3:
+                r_name = topic_parts[1]
+                delta_yaw = float(payload.get("yaw_delta", 0.0))
+                if "radars" in coordinator.data and r_name in coordinator.data["radars"]:
+                    if not coordinator.data["radars"][r_name].get("auth_passed", False):
+                        _LOGGER.warning(f"RMM: ⚠️ 拦截到雷达 '{r_name}' 的硬件偏航角同步请求，但该设备未验证专属配对码，已拒绝执行！")
+                        return
+                    layout = coordinator.data["radars"][r_name].get("layout", {})
+                    current_rot = float(layout.get("rotation", 0.0))
+                    new_rot = round((current_rot - delta_yaw) % 360.0, 1)
+                    layout["rotation"] = new_rot
+                    coordinator.data["radars"][r_name]["layout"] = layout
+                    _LOGGER.info(f"RMM: [硬件协同] 收到雷达 {r_name} 物理偏航角偏移 {delta_yaw}°，新朝向: {new_rot}°")
+                    await coordinator.async_save()
+                    await broadcast_hw_zones()
+                    await broadcast_monitor_zones()
+                    await processor.update(force=True)
+        except Exception as e:
+            _LOGGER.error(f"RMM: Failed to parse yaw_delta: {e}")
+    @callback
     def async_on_radar_data(msg):
         try:
             payload = json.loads(msg.payload)
@@ -479,6 +508,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             await mqtt.async_subscribe(hass, "rmm_radar/+/info", async_on_radar_info)
             await mqtt.async_subscribe(hass, "rmm_radar/+/auth/response", async_on_auth_response)
             await mqtt.async_subscribe(hass, "rmm_radar/+/data", async_on_radar_data)
+            await mqtt.async_subscribe(hass, "rmm_radar/+/yaw_delta/state", async_on_yaw_delta)
             _LOGGER.info("RMM: Successfully subscribed to info and auth topics")
         except Exception as e:
             _LOGGER.error(f"RMM: Failed to subscribe to info topic: {e}")

@@ -263,10 +263,14 @@ class RadarMapCardNative extends HTMLElement {
                 currentIds.push(tid);
                 let smooth_x = t.x;
                 let smooth_y = t.y;
+                let alpha = 0.4;
+                if (this.state.data && this.state.data.global_config && this.state.data.global_config.ema_smoothing_level !== undefined) {
+                    alpha = Math.max(0.1, Math.min(1.0, (11 - parseInt(this.state.data.global_config.ema_smoothing_level)) / 10.0));
+                }
                 if (wsData && wsData.connected) {
                     if (this.state.smoothedTargets[tid]) {
-                        smooth_x = this.state.smoothedTargets[tid].x * 0.6 + t.x * 0.4;
-                        smooth_y = this.state.smoothedTargets[tid].y * 0.6 + t.y * 0.4;
+                        smooth_x = this.state.smoothedTargets[tid].x * (1 - alpha) + t.x * alpha;
+                        smooth_y = this.state.smoothedTargets[tid].y * (1 - alpha) + t.y * alpha;
                     }
                     this.state.smoothedTargets[tid] = { x: smooth_x, y: smooth_y };
                 } else {
@@ -530,15 +534,12 @@ class RadarMapCardNative extends HTMLElement {
     }
     saveToBackend() {
         this.ignoreUpdatesUntil = Date.now() + 2000;
-        let fullData = { radars: {}, maps: {} };
-        if (this.fullRawData) {
-            fullData = JSON.parse(JSON.stringify(this.fullRawData));
-        } else {
-            const ent = this._hass.states['sensor.radar_map_manager'];
-            if (ent && ent.attributes.data_json) {
-                try { fullData = JSON.parse(ent.attributes.data_json); } catch(e) {}
-            }
+        if (!this.fullRawData) {
+            console.error("RMM: Cannot save! fullRawData is missing.");
+            alert("⚠️ 安全拦截：尚未接收到雷达后端数据流！\n为防止配置被意外清空，已阻止本次保存。\n\n请刷新页面并等待地图加载后再试！");
+            return;
         }
+        let fullData = JSON.parse(JSON.stringify(this.fullRawData));
         const currentMapGroup = this.state.mapGroup;
         if (!fullData.maps) fullData.maps = {};
         if (!fullData.maps[currentMapGroup]) fullData.maps[currentMapGroup] = {};

@@ -85,7 +85,6 @@ export class RadarRenderer {
         const dotsLayer = this.root.getElementById('dots-layer');
         if (!svg || !dotsLayer || !hass || !hass.states) return;
         while (svg.firstChild) svg.removeChild(svg.firstChild);
-        dotsLayer.innerHTML = ''; 
         const allRadars = this._getAllRadars(state, config, hass);
         this.drawZones(state, config, svg);
         this.drawDrawingGuides(state, svg);
@@ -328,15 +327,19 @@ export class RadarRenderer {
     drawTargets(state, config, hass, radarList) {
         const layer = this.root.getElementById('dots-layer');
         if (!layer) return; 
+        const currentActiveIds = new Set(); 
         if (state.calibration && state.calibration.active && state.calibration.map) {
             const tx = state.calibration.map.x; const ty = state.calibration.map.y;
-            const dot = document.createElement('div'); 
-            dot.className = 'dot'; dot.style.width = '12px'; dot.style.height = '12px'; 
-            dot.style.background = 'red'; dot.style.border = '2px solid white'; dot.style.boxShadow = '0 0 10px red'; 
-            dot.style.left = tx + '%'; dot.style.top = ty + '%'; dot.style.zIndex = '100'; dot.innerText = '+';
-            layer.appendChild(dot);
-            return;
-        }
+            currentActiveIds.add('calib_dot');
+            let dot = layer.querySelector('#calib_dot');
+            if (!dot) {
+                dot = document.createElement('div'); 
+                dot.id = 'calib_dot'; dot.className = 'dot'; dot.style.width = '12px'; dot.style.height = '12px'; 
+                dot.style.background = 'red'; dot.style.border = '2px solid white'; dot.style.boxShadow = '0 0 10px red'; 
+                dot.style.zIndex = '100'; dot.innerText = '+'; layer.appendChild(dot);
+            }
+            dot.style.left = tx + '%'; dot.style.top = ty + '%'; 
+        } else {
         const targetRadius = config.target_radius || 8;
         const showLabels = config.show_labels !== false;
         const mapGroup = state.mapGroup || "default";
@@ -353,44 +356,52 @@ export class RadarRenderer {
                     if (excludeZones.some(z => this._isPointInPoly(t.x, t.y, z))) {
                         return; 
                     }
-                    const dot = document.createElement('div');
-                    dot.className = 'dot';
-                    dot.style.width = `${targetRadius * 2}px`; 
-                    dot.style.height = `${targetRadius * 2}px`;
-                    dot.style.background = fusedColor;
-                    dot.style.border = '2px solid white'; 
-                    dot.style.boxShadow = `0 0 8px ${fusedColor}`; 
-                    dot.style.color = 'white'; 
-                    const strokeW = Math.max(0.5, targetRadius * 0.08); 
-                    dot.style.webkitTextStroke = `${strokeW}px black`;
-                    dot.style.paintOrder = "stroke fill"; 
-                    dot.style.textShadow = 'none'; 
-                    dot.style.fontWeight = '900'; 
-                    const fontSize = Math.max(9, targetRadius * 1.3); 
-                    dot.style.fontSize = `${fontSize}px`;
-                    dot.style.transition = 'left 0.2s linear, top 0.2s linear';
+                    const dotId = `fused_${t.id}`;
+                    currentActiveIds.add(dotId);
+                    let dot = layer.querySelector(`#${dotId}`);
+                    if (!dot) { 
+                        dot = document.createElement('div');
+                        dot.id = dotId; dot.className = 'dot';
+                        dot.style.width = `${targetRadius * 2}px`; dot.style.height = `${targetRadius * 2}px`;
+                        dot.style.background = fusedColor; dot.style.border = '2px solid white'; 
+                        dot.style.boxShadow = `0 0 8px ${fusedColor}`; dot.style.color = 'white'; 
+                        const strokeW = Math.max(0.5, targetRadius * 0.08); 
+                        dot.style.webkitTextStroke = `${strokeW}px black`;
+                        dot.style.paintOrder = "stroke fill"; dot.style.textShadow = 'none'; 
+                        dot.style.fontWeight = '900'; 
+                        const fontSize = Math.max(9, targetRadius * 1.3); 
+                        dot.style.fontSize = `${fontSize}px`;
+                        dot.style.transition = 'left 0.15s linear, top 0.15s linear';
+                        layer.appendChild(dot);
+                    }
                     dot.style.left = t.x + '%'; 
                     dot.style.top = t.y + '%'; 
-                    const label = t.id ? t.id.replace('target_', '') : '';
-                    dot.innerText = label;
+                    dot.innerText = showLabels ? (t.id ? t.id.replace('target_', '') : '') : '';
                     if (showLabels) dot.title = `Fused ID: ${t.id}\nSources: ${t.sources}`;
-                    layer.appendChild(dot);
                 });
             }
-            return; 
-        }
-        const defColors = ['#00FF00', '#FF0000', '#00FFFF'];
-        const userColors = config.target_colors || [];
-        const targetsToDraw = radarList || this._getAllRadars(state, config, hass);
-        targetsToDraw.forEach(rObj => {
-            const rName = rObj.name;
-            const cfg = this.getRadarConfig(state, rName, hass);
-            for (let i = 1; i <= 3; i++) {
-                this.processTarget(hass, rName, i, cfg, targetRadius, showLabels, userColors, defColors, null, layer);
+        } else if (state.editing && state.editMode === 'layout') {
+                const defColors = ['#00FF00', '#FF0000', '#00FFFF'];
+                const userColors = config.target_colors || [];
+                const targetsToDraw = radarList || this._getAllRadars(state, config, hass);
+                targetsToDraw.forEach(rObj => {
+                    const rName = rObj.name;
+                    const cfg = this.getRadarConfig(state, rName, hass);
+                    const rData = state.data[rName] || {};
+                    const maxT = (rData.capabilities && rData.capabilities.max_targets) ? rData.capabilities.max_targets : 5;
+                    for (let i = 1; i <= maxT; i++) {
+                        this.processTarget(hass, rName, i, cfg, targetRadius, showLabels, userColors, defColors, null, layer, currentActiveIds);
+                    }
+                });
+            }
+        Array.from(layer.children).forEach(child => {
+            if (!currentActiveIds.has(child.id)) {
+                layer.removeChild(child);
             }
         });
+        }
     }
-    processTarget(hass, rName, i, cfg, radius, showLbl, uCols, dCols, unitOverride, layer) {
+    processTarget(hass, rName, i, cfg, radius, showLbl, uCols, dCols, unitOverride, layer, currentActiveIds) {
         const lowerName = rName.toLowerCase();
         let xs = hass.states[`sensor.${lowerName}_target_${i}_x`];
         let ys = hass.states[`sensor.${lowerName}_target_${i}_y`];
@@ -419,35 +430,43 @@ export class RadarRenderer {
             if (unit === 'cm') { xVal*=10; yVal*=10; zVal*=10; } 
             else if (unit === 'm') { xVal*=1000; yVal*=1000; zVal*=1000; }
             if (Math.abs(yVal) > 10) {
-                this.renderDot(layer, i, xVal, yVal, zVal, cfg, radius, showLbl, uCols, dCols, is1D);
+                this.renderDot(layer, rName, i, xVal, yVal, zVal, cfg, radius, showLbl, uCols, dCols, is1D, currentActiveIds);
                 return true;
             }
         }
         return false;
     }
-    renderDot(layer, idx, xVal, yVal, zVal, cfg, r, showLbl, uCols, dCols, is1D) {
+    renderDot(layer, rName, idx, xVal, yVal, zVal, cfg, r, showLbl, uCols, dCols, is1D, currentActiveIds) {
         const ground = this.math.calculate(cfg, { x: xVal, y: yVal, z: zVal });
-        const shadow = document.createElement('div'); 
-        shadow.className = 'base-shadow'; 
-        shadow.style.width = `${r}px`; 
-        shadow.style.height = `${r / 2}px`;
+        const shadowId = `shadow_${rName}_${idx}`;
+        const dotId = `raw_${rName}_${idx}`;
+        if (currentActiveIds) {
+            currentActiveIds.add(shadowId);
+            currentActiveIds.add(dotId);
+        }
+        let shadow = layer.querySelector(`#${shadowId}`);
+        if (!shadow) {
+            shadow = document.createElement('div'); 
+            shadow.id = shadowId; shadow.className = 'base-shadow'; 
+            shadow.style.width = `${r}px`; shadow.style.height = `${r / 2}px`;
+            shadow.style.transition = 'left 0.15s linear, top 0.15s linear'; 
+            layer.appendChild(shadow);
+        }
         shadow.style.left = ground.left + '%'; 
         shadow.style.top = ground.top + '%';
-        shadow.style.transition = 'left 0.2s linear, top 0.2s linear'; 
-        layer.appendChild(shadow);
-        const dot = document.createElement('div'); 
-        dot.className = 'dot'; 
-        dot.style.width = `${r * 2}px`; 
-        dot.style.height = `${r * 2}px`;
-        const colorIdx = (typeof idx === 'number') ? ((idx > 9) ? (idx % dCols.length) : (idx - 1)) : 0;
-        const col = uCols[colorIdx] || dCols[colorIdx % dCols.length] || 'white';
-        dot.style.background = col; 
-        dot.style.color = 'black'; 
-        dot.style.textShadow = '0 0 1px white';
-        const fontSize = Math.max(8, r * 1.1); 
-        dot.style.fontSize = `${fontSize}px`;
-        dot.style.transition = 'left 0.2s linear, top 0.2s linear';
-        if (showLbl) dot.innerText = is1D ? "D" : ((idx > 9) ? "D" : idx);
+        let dot = layer.querySelector(`#${dotId}`);
+        if (!dot) {
+            dot = document.createElement('div'); 
+            dot.id = dotId; dot.className = 'dot'; 
+            dot.style.width = `${r * 2}px`; dot.style.height = `${r * 2}px`;
+            const colorIdx = (typeof idx === 'number') ? ((idx > 9) ? (idx % dCols.length) : (idx - 1)) : 0;
+            const col = uCols[colorIdx] || dCols[colorIdx % dCols.length] || 'white';
+            dot.style.background = col; dot.style.color = 'black'; dot.style.textShadow = '0 0 1px white';
+            const fontSize = Math.max(8, r * 1.1); dot.style.fontSize = `${fontSize}px`;
+            dot.style.transition = 'left 0.15s linear, top 0.15s linear';
+            layer.appendChild(dot);
+        }
+        dot.innerText = showLbl ? (is1D ? "D" : ((idx > 9) ? "D" : idx)) : '';
         dot.style.left = ground.left + '%'; 
         dot.style.top = ground.top + '%';
         layer.appendChild(dot);

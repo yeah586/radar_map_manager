@@ -20,7 +20,8 @@ class RadarCoordinator:
                 "update_interval": 0.1, 
                 "merge_distance": 0.8,
                 "target_height": 1.5,
-                "fused_color": "#FFD700"
+                "fused_color": "#FFD700",
+                "ema_smoothing_level": 7
             },
             "maps": {
                 "default": {
