@@ -179,7 +179,7 @@ export class RadarRenderer {
         const showLabels = config.show_labels !== false; 
         const handleStroke = config.handle_stroke || 1; 
         const labelSize = parseFloat(config.label_size) || 3.5;
-        const TYPE_COLORS = { 'monitor_zones': '#FFD700', 'include_zones': '#00FF00', 'exclude_zones': '#FF0000', 'hardware_zones': '#9C27B0' };
+        const TYPE_COLORS = { 'monitor_zones': '#FFD700', 'include_zones': '#00FF00', 'exclude_zones': '#FF0000', 'hardware_zones': '#9C27B0', 'entrance_zones': '#00BFFF' };
         const createPoly = (obj, typeKey, pIdx, rName) => {
             const group = this._create('g', { 'data-type': typeKey, 'data-index': pIdx, 'data-radar': rName || '' });
             const pts = Array.isArray(obj) ? obj : obj.points;
@@ -300,7 +300,7 @@ export class RadarRenderer {
             });
         }
         const globalZones = (state.data && state.data.global_zones) || {};
-        ['include_zones', 'exclude_zones'].forEach(tKey => {
+        ['include_zones', 'exclude_zones', 'entrance_zones'].forEach(tKey => {
             const list = globalZones[tKey];
             if (Array.isArray(list)) {
                 list.forEach((p, i) => drawTasks.push({ obj: p, type: tKey, idx: i, rName: 'global', area: this._calculateArea(Array.isArray(p)?p:p.points) })); 

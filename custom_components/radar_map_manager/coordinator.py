@@ -21,7 +21,9 @@ class RadarCoordinator:
                 "merge_distance": 0.8,
                 "target_height": 1.5,
                 "fused_color": "#FFD700",
-                "ema_smoothing_level": 7
+                "ema_smoothing_level": 7,
+                "verify_delay": 2.5,
+                "hibernation_ttl": 12.0
             },
             "maps": {
                 "default": {

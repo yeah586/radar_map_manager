@@ -269,6 +269,26 @@ export class RadarUI {
                             <span id="val-merge" style="width:30px; text-align:right">0.8m</span>
                         </div>
                         <div class="row" style="justify-content: space-between;">
+                            <div style="display:flex; align-items:center; gap:1px;">
+                                <label style="width:22px; text-align:right;" title="Time to verify a target">Vfy</label>
+                                <div class="slider-row" style="flex:none; width:auto;">
+                                    <button class="stepper" id="btn-vfy-minus">-</button>
+                                    <input type="number" id="set-verify-input" min="0" max="5.0" step="0.5" style="width:24px; text-align:center; padding:0;">
+                                    <button class="stepper" id="btn-vfy-plus">+</button>
+                                </div>
+                                <span style="font-size:9px; color:#aaa; width:6px;">s</span>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:1px;">
+                                <label style="width:25px; text-align:right;" title="Hibernation TTL">Hbm</label>
+                                <div class="slider-row" style="flex:none; width:auto;">
+                                    <button class="stepper" id="btn-hbm-minus">-</button>
+                                    <input type="number" id="set-hbm-input" min="0" max="24" step="1" style="width:24px; text-align:center; padding:0;">
+                                    <button class="stepper" id="btn-hbm-plus">+</button>
+                                </div>
+                                <span style="font-size:9px; color:#aaa; width:6px;">h</span>
+                            </div>
+                        </div>
+                        <div class="row" style="justify-content: space-between;">
                             <div style="display:flex; align-items:center; gap:2px;">
                                 <label style="width:40px">Color</label>
                                 <div style="display:flex; align-items:center; background:#111; border:1px solid #333; border-radius:2px; padding:1px; height:18px; box-sizing:border-box;">
@@ -369,9 +389,9 @@ export class RadarUI {
                     selType.innerHTML = `
                         <option value="include_zones">🟢 Detect Trigger</option>
                         <option value="exclude_zones">🔴 Detect Exclude</option>
-                    `;
+                        <option value="entrance_zones">🟦 Entrance Zone</option> `;
                 }
-                if (state.type !== 'include_zones' && state.type !== 'exclude_zones') {
+                if (state.type !== 'include_zones' && state.type !== 'exclude_zones' && state.type !== 'entrance_zones') {
                     selType.value = 'include_zones';
                 } else {
                     selType.value = state.type;
@@ -474,7 +494,7 @@ export class RadarUI {
             }
         }
         if (inDelay) {
-            if (state.type === 'exclude_zones' || state.type === 'monitor_zones' || state.fov_edit_mode) { 
+            if (state.type === 'exclude_zones' || state.type === 'entrance_zones' || state.type === 'monitor_zones' || state.fov_edit_mode) { 
                 inDelay.disabled = true; 
                 inDelay.style.opacity = 0.3; 
                 inDelay.value = ''; 
@@ -537,6 +557,8 @@ export class RadarUI {
         bindControl('set-interval-range', 'val-interval', 'btn-int-minus', 'btn-int-plus', 'update_interval', 0.1, 's');
         bindControl('set-ema-range', 'val-ema', 'btn-ema-minus', 'btn-ema-plus', 'ema_smoothing_level', 7, ' Lvl');
         bindControl('set-merge-range', 'val-merge', 'btn-mrg-minus', 'btn-mrg-plus', 'merge_distance', 0.8, 'm');
+        bindControl('set-verify-input', null, 'btn-vfy-minus', 'btn-vfy-plus', 'verify_delay', 2.5, '');
+        bindControl('set-hbm-input', null, 'btn-hbm-minus', 'btn-hbm-plus', 'hibernation_ttl', 12.0, '');
         bindControl('set-target-input', null, 'btn-tgt-minus', 'btn-tgt-plus', 'target_height', 1.5, '');
         const colorInput = this.root.getElementById('set-fused-color');
         const colorLabel = this.root.getElementById('val-fused-color');

@@ -16,6 +16,8 @@ class FusionEngine:
             target_h = float(global_config.get("target_height", 1.5))
             ema_level = int(global_config.get("ema_smoothing_level", 7))
             update_interval = float(global_config.get("update_interval", 0.1))
+            verify_delay = float(global_config.get("verify_delay", 2.5))
+            hibernation_ttl_sec = float(global_config.get("hibernation_ttl", 12.0)) * 3600.0
             maps = data.get("maps", {})
             radars = data.get("radars", {})
             map_targets = {}
@@ -27,6 +29,7 @@ class FusionEngine:
                 current_map_data = maps.get(map_group, {})
                 current_map_zones = current_map_data.get("zones", {})
                 exclude_zones = current_map_zones.get("exclude_zones", [])
+                entrance_zones = current_map_zones.get("entrance_zones", [])
                 origin_x = float(layout.get('origin_x', 50))
                 origin_y = float(layout.get('origin_y', 50))
                 r_conf['targets'] = []
@@ -75,7 +78,8 @@ class FusionEngine:
                             target_data["origin_y"] = origin_y
                         map_targets[map_group].append(target_data)
             for map_id, points in map_targets.items():
-                fused_results = self._cluster_targets(map_id, points, merge_dist, ema_level, update_interval)
+                map_entrance = maps.get(map_id, {}).get("zones", {}).get("entrance_zones", [])
+                fused_results = self._cluster_targets(map_id, points, merge_dist, ema_level, update_interval, map_entrance, verify_delay, hibernation_ttl_sec)
                 if map_id in maps:
                     maps[map_id]['targets'] = fused_results
                 self._update_master_sensor(map_id, fused_results)
@@ -150,17 +154,20 @@ class FusionEngine:
             return {'left': final_x, 'top': final_y, 'active': True}
         except Exception as e:
             return None
-    def _cluster_targets(self, map_id, points, merge_dist_m=0.8, ema_level=7, update_interval=0.1):
+    def _cluster_targets(self, map_id, points, merge_dist_m=0.8, ema_level=7, update_interval=0.1, entrance_zones=None, verify_delay=2.5, hibernation_ttl_sec=43200.0):
+        import time
+        current_time = time.time()
         old_targets = self._history.get(map_id, {})
-        max_missed_frames = 1
+        available_old = list(old_targets.keys())
         if not points: 
             new_history = {}
             for old_id, data in old_targets.items():
-                missed = data.get('missed', 0) + 1
-                if missed <= max_missed_frames:
-                    new_history[old_id] = {'x': data['x'], 'y': data['y'], 'missed': missed}
+                if data.get('is_verified', False):
+                    if (current_time - data.get('last_seen', current_time)) < hibernation_ttl_sec:
+                        new_history[old_id] = data
+                        new_history[old_id]['hibernating'] = True
             self._history[map_id] = new_history
-            return []
+            return [] 
         merge_threshold = merge_dist_m * 5.0 
         clusters = []
         used = [False] * len(points)
@@ -179,10 +186,8 @@ class FusionEngine:
                 is_p1_1d = p1.get('is_1d', False)
                 is_p2_1d = p2.get('is_1d', False)
                 if is_p1_1d or is_p2_1d:
-                    if is_p1_1d:
-                        ox, oy = p1.get('origin_x'), p1.get('origin_y')
-                    else:
-                        ox, oy = p2.get('origin_x'), p2.get('origin_y')
+                    if is_p1_1d: ox, oy = p1.get('origin_x'), p1.get('origin_y')
+                    else: ox, oy = p2.get('origin_x'), p2.get('origin_y')
                     if ox is not None and oy is not None:
                         r1 = math.sqrt((p1['x'] - ox)**2 + (p1['y'] - oy)**2)
                         r2 = math.sqrt((p2['x'] - ox)**2 + (p2['y'] - oy)**2)
@@ -207,70 +212,103 @@ class FusionEngine:
             sources = [f"{p['radar']}:{p['raw_id']}" for p in cl]
             new_centroids.append({'x': avg_x, 'y': avg_y, 'count': len(cl), 'sources': sources})
         results = []
-        available_old = list(old_targets.keys())
         base_alpha = max(0.1, min(1.0, (11 - ema_level) / 10.0))
-        max_jump_dist = 15.0
+        max_jump_dist = 20.0
+        resurrect_radius = merge_dist_m * 20.0
         used_ids = set()
         for t_id in old_targets.keys():
             if t_id.startswith("target_"):
                 try: used_ids.add(int(t_id.replace("target_", "")))
                 except ValueError: pass
+        new_history = {}
         for new_c in new_centroids:
             best_id = None
             best_dist = float('inf')
+            is_resurrected = False
             for old_id in available_old:
-                ox = old_targets[old_id]['x']
-                oy = old_targets[old_id]['y']
-                dist = math.hypot(new_c['x'] - ox, new_c['y'] - oy)
-                if dist < best_dist and dist < max_jump_dist:
-                    best_dist = dist
-                    best_id = old_id
+                if not old_targets[old_id].get('hibernating', False):
+                    ox = old_targets[old_id]['x']
+                    oy = old_targets[old_id]['y']
+                    dist = math.hypot(new_c['x'] - ox, new_c['y'] - oy)
+                    if dist < best_dist and dist < max_jump_dist:
+                        best_dist = dist
+                        best_id = old_id
+            if best_id is None:
+                best_dist = float('inf')
+                for old_id in available_old:
+                    if old_targets[old_id].get('hibernating', False):
+                        ox = old_targets[old_id]['x']
+                        oy = old_targets[old_id]['y']
+                        dist = math.hypot(new_c['x'] - ox, new_c['y'] - oy)
+                        if dist < resurrect_radius and dist < best_dist:
+                            best_dist = dist
+                            best_id = old_id
+                            is_resurrected = True
             if best_id is not None:
                 available_old.remove(best_id)
                 old_x = old_targets[best_id]['x']
                 old_y = old_targets[best_id]['y']
                 speed_ratio = max(0.01, update_interval) / 0.1
-                still_threshold = 0.2 * speed_ratio
-                walk_threshold  = 1.5 * speed_ratio
-                jump_threshold  = 4.0 * speed_ratio
-                if best_dist < still_threshold:
-                    current_alpha = base_alpha * 0.5
-                elif best_dist < walk_threshold:
-                    current_alpha = base_alpha
-                elif best_dist > jump_threshold:
-                    current_alpha = 1.0
+                still_threshold = 0.2 * speed_ratio 
+                walk_threshold  = 1.5 * speed_ratio 
+                jump_threshold  = 4.0 * speed_ratio 
+                if best_dist < still_threshold: current_alpha = base_alpha * 0.5
+                elif best_dist < walk_threshold: current_alpha = base_alpha
+                elif best_dist > jump_threshold: current_alpha = 1.0
                 else:
                     ratio = (best_dist - walk_threshold) / (jump_threshold - walk_threshold)
                     current_alpha = base_alpha + (1.0 - base_alpha) * ratio
                 smoothed_x = current_alpha * new_c['x'] + (1 - current_alpha) * old_x
                 smoothed_y = current_alpha * new_c['y'] + (1 - current_alpha) * old_y
                 target_id = best_id
+                spawn_time = old_targets[best_id].get('spawn_time', current_time)
+                is_verified = old_targets[best_id].get('is_verified', False)
+                if is_resurrected:
+                    is_verified = True
+                elif not is_verified and (current_time - spawn_time) > verify_delay:
+                    is_verified = True 
             else:
                 smoothed_x = new_c['x']
                 smoothed_y = new_c['y']
                 new_id_num = 1
-                while new_id_num in used_ids:
-                    new_id_num += 1
+                while new_id_num in used_ids: new_id_num += 1
                 used_ids.add(new_id_num)
                 target_id = f"target_{new_id_num}"
-            results.append({
-                "id": target_id,
-                "x": round(smoothed_x, 2), 
-                "y": round(smoothed_y, 2),
-                "count": new_c['count'], 
-                "sources": new_c['sources']
-            })
-        new_history = {}
-        for res in results:
-            new_history[res["id"]] = {'x': res["x"], 'y': res["y"], 'missed': 0}
+                spawn_time = current_time
+                is_verified = False
+                if not entrance_zones:
+                    is_verified = True 
+                else:
+                    for zone in entrance_zones:
+                        poly = zone.get("points", [])
+                        if poly and len(poly) >= 3:
+                            if self._point_in_polygon(smoothed_x, smoothed_y, poly):
+                                is_verified = True 
+                                break
+            if is_verified:
+                results.append({
+                    "id": target_id,
+                    "x": round(smoothed_x, 2), 
+                    "y": round(smoothed_y, 2),
+                    "count": new_c['count'], 
+                    "sources": new_c['sources']
+                })
+            new_history[target_id] = {
+                'x': smoothed_x, 'y': smoothed_y,
+                'is_verified': is_verified,
+                'spawn_time': spawn_time,
+                'last_seen': current_time,
+                'hibernating': False
+            }
         for old_id in available_old:
-            missed_count = old_targets[old_id].get('missed', 0) + 1
-            if missed_count <= max_missed_frames:
-                new_history[old_id] = {
-                    'x': old_targets[old_id]['x'],
-                    'y': old_targets[old_id]['y'],
-                    'missed': missed_count
-                }
+            old_t = dict(old_targets[old_id]) 
+            if old_t.get('is_verified', False):
+                if (current_time - old_t.get('last_seen', current_time)) < hibernation_ttl_sec:
+                    old_t['hibernating'] = True
+                    new_history[old_id] = old_t
+            else:
+                if (current_time - old_t.get('last_seen', current_time)) <= 1.0:
+                    new_history[old_id] = old_t
         self._history[map_id] = new_history
         return results
     def _update_master_sensor(self, map_id, targets):
