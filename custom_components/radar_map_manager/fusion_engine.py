@@ -21,6 +21,9 @@ class FusionEngine:
             update_interval = float(global_config.get("update_interval", 0.1))
             verify_delay = float(global_config.get("verify_delay", 2.5))
             hibernation_ttl_sec = float(global_config.get("hibernation_ttl", 12.0)) * 3600.0
+            enable_verify_rule = bool(global_config.get("enable_verify_rule", True))
+            max_jump_base = float(global_config.get("max_jump_base", 1.5))
+            max_jump_speed = float(global_config.get("max_jump_speed", 2.5))
             maps = data.get("maps", {})
             radars = data.get("radars", {})
             map_targets = {}
@@ -81,7 +84,8 @@ class FusionEngine:
                 avg_map_scale = sum(scales) / len(scales) if scales else 5.0
                 fused_results = self._cluster_targets(
                     map_id, points, merge_dist, ema_level, update_interval, 
-                    map_entrance, map_exclude, verify_delay, hibernation_ttl_sec, avg_map_scale
+                    map_entrance, map_exclude, verify_delay, hibernation_ttl_sec, avg_map_scale, enable_verify_rule,
+                    max_jump_base, max_jump_speed
                 )
                 if map_id in maps:
                     maps[map_id]['targets'] = fused_results
@@ -157,7 +161,7 @@ class FusionEngine:
             return {'left': final_x, 'top': final_y, 'active': True}
         except Exception as e:
             return None
-    def _cluster_targets(self, map_id, points, merge_dist_m=0.8, ema_level=7, update_interval=0.1, entrance_zones=None, exclude_zones=None, verify_delay=2.5, hibernation_ttl_sec=43200, map_scale=5.0):
+    def _cluster_targets(self, map_id, points, merge_dist_m=0.8, ema_level=7, update_interval=0.1, entrance_zones=None, exclude_zones=None, verify_delay=2.5, hibernation_ttl_sec=43200, map_scale=5.0, enable_verify_rule=True, max_jump_base=1.5, max_jump_speed=2.5):
         import time
         current_time = time.time()
         old_targets = self._history.get(map_id, {})
@@ -216,7 +220,7 @@ class FusionEngine:
             new_centroids.append({'x': avg_x, 'y': avg_y, 'count': len(cl), 'sources': sources})
         results = []
         base_alpha = max(0.1, min(1.0, (11 - ema_level) / 10.0))
-        max_jump_m = 1.5 + (2.5 * update_interval)
+        max_jump_m = max_jump_base + (max_jump_speed * update_interval)
         max_jump_dist = max_jump_m * map_scale 
         resurrect_radius = 1.5 * map_scale
         used_ids = set()
@@ -279,23 +283,24 @@ class FusionEngine:
                 used_ids.add(new_id_num)
                 target_id = f"target_{new_id_num}"
                 spawn_time = current_time
+                is_valid_birth = enable_verify_rule
                 is_verified = False
-                is_valid_birth = True
+                if entrance_zones:
+                    for zone in entrance_zones:
+                        poly = zone.get("points", [])
+                        if poly and len(poly) >= 3:
+                            if self._point_in_polygon(smoothed_x, smoothed_y, poly):
+                                is_valid_birth = True 
+                                is_verified = True 
+                                break
                 if exclude_zones:
                     for zone in exclude_zones:
                         poly = zone.get("points", [])
                         if poly and len(poly) >= 3:
                             if self._point_in_polygon(smoothed_x, smoothed_y, poly):
                                 is_valid_birth = False
+                                is_verified = False 
                                 break
-                if is_valid_birth and entrance_zones:
-                    for zone in entrance_zones:
-                        poly = zone.get("points", [])
-                        if poly and len(poly) >= 3:
-                            if self._point_in_polygon(smoothed_x, smoothed_y, poly):
-                                is_verified = True 
-                                break
-                is_verified = False
                 if is_valid_birth and verify_delay <= 0.001:
                     is_verified = True
             if is_verified:

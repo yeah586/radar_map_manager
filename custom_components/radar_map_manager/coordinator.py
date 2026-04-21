@@ -23,7 +23,10 @@ class RadarCoordinator:
                 "fused_color": "#FFD700",
                 "ema_smoothing_level": 7,
                 "verify_delay": 2.5,
-                "hibernation_ttl": 12.0
+                "hibernation_ttl": 12.0,
+                "enable_verify_rule": True,
+                "max_jump_base": 1.0,
+                "max_jump_speed": 2.5
             },
             "maps": {
                 "default": {

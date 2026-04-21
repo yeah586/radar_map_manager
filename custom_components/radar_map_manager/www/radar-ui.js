@@ -258,7 +258,7 @@ export class RadarUI {
                             <span id="val-interval" style="width:30px; text-align:right">0.1s</span>
                         </div>
                         <div class="row">
-                            <label style="width:40px" title="Higher is smoother">Smooth</label>
+                            <label style="width:40px">Smooth</label>
                             <div class="slider-row">
                                 <button class="stepper" id="btn-ema-minus">-</button>
                                 <input type="range" id="set-ema-range" min="1" max="10" step="1" class="slider">
@@ -276,8 +276,11 @@ export class RadarUI {
                             <span id="val-merge" style="width:30px; text-align:right">0.8m</span>
                         </div>
                         <div class="row">
-                            <label style="width:40px" title="Time to verify a target">Verify</label>
-                            <div class="slider-row">
+                            <label style="width:40px; display:flex; align-items:center; justify-content:flex-end; gap:2px; cursor:pointer;" title="Check: Allow spawning anywhere with delay. Uncheck: Strict Entrance only.">
+                                <input type="checkbox" id="chk-enable-verify" style="margin:0; width:10px; height:10px;">
+                                Verify
+                            </label>
+                            <div class="slider-row" id="wrap-verify">
                                 <button class="stepper" id="btn-vfy-minus">-</button>
                                 <input type="range" id="set-verify-range" min="0" max="5.0" step="0.5" class="slider">
                                 <button class="stepper" id="btn-vfy-plus">+</button>
@@ -292,6 +295,24 @@ export class RadarUI {
                                 <button class="stepper" id="btn-hbm-plus">+</button>
                             </div>
                             <span id="val-hbm" style="width:30px; text-align:right">12h</span>
+                        </div>
+                        <div class="row">
+                            <label style="width:40px" title="Base spatial tolerance (Radar drift limit)">J_Base</label>
+                            <div class="slider-row">
+                                <button class="stepper" id="btn-mjb-minus">-</button>
+                                <input type="range" id="set-mjb-range" min="0.1" max="5.0" step="0.1" class="slider">
+                                <button class="stepper" id="btn-mjb-plus">+</button>
+                            </div>
+                            <span id="val-mjb" style="width:30px; text-align:right">1.5m</span>
+                        </div>
+                        <div class="row">
+                            <label style="width:40px" title="Max human movement speed">J_Speed</label>
+                            <div class="slider-row">
+                                <button class="stepper" id="btn-mjs-minus">-</button>
+                                <input type="range" id="set-mjs-range" min="0.5" max="10.0" step="0.5" class="slider">
+                                <button class="stepper" id="btn-mjs-plus">+</button>
+                            </div>
+                            <span id="val-mjs" style="width:30px; text-align:right">2.5m/s</span>
                         </div>
                         <div class="row" style="justify-content: space-between;">
                             <div style="display:flex; align-items:center; gap:2px;">
@@ -567,6 +588,28 @@ export class RadarUI {
         bindControl('set-verify-range', 'val-verify', 'btn-vfy-minus', 'btn-vfy-plus', 'verify_delay', 2.5, 's');
         bindControl('set-hbm-range', 'val-hbm', 'btn-hbm-minus', 'btn-hbm-plus', 'hibernation_ttl', 12.0, 'h');
         bindControl('set-target-input', null, 'btn-tgt-minus', 'btn-tgt-plus', 'target_height', 1.5, '');
+        bindControl('set-mjb-range', 'val-mjb', 'btn-mjb-minus', 'btn-mjb-plus', 'max_jump_base', 1.5, 'm');
+        bindControl('set-mjs-range', 'val-mjs', 'btn-mjs-minus', 'btn-mjs-plus', 'max_jump_speed', 2.5, 'm/s');
+        const chkVerify = this.root.getElementById('chk-enable-verify');
+        if (chkVerify) {
+            let isEnabled = (conf.enable_verify_rule !== undefined) ? conf.enable_verify_rule : true;
+            if (this.root.activeElement !== chkVerify) chkVerify.checked = isEnabled;
+            const updateVfyState = () => {
+                const op = chkVerify.checked ? '1' : '0.3';
+                const dis = !chkVerify.checked;
+                const els = ['wrap-verify', 'val-verify'];
+                els.forEach(id => { const el = this.root.getElementById(id); if(el) el.style.opacity = op; });
+                const btns = ['set-verify-range', 'btn-vfy-minus', 'btn-vfy-plus'];
+                btns.forEach(id => { const el = this.root.getElementById(id); if(el) el.disabled = dis; });
+            };
+            updateVfyState();
+            chkVerify.onchange = (e) => {
+                updateVfyState();
+                if(state.hass) {
+                    state.hass.callService('radar_map_manager', 'update_global_config', { enable_verify_rule: e.target.checked });
+                }
+            };
+        }
         const colorInput = this.root.getElementById('set-fused-color');
         const colorLabel = this.root.getElementById('val-fused-color');
         if (colorInput) {
