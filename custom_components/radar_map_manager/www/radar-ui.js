@@ -249,13 +249,6 @@ export class RadarUI {
                     </div>
                     <div id="settings-tools" class="content hidden">
                         <div class="scroll-area" style="display:flex; flex-direction:column; gap:3px; margin-top:5px;">
-                        <div class="row" style="border-bottom: 1px solid #333; padding-bottom: 4px; margin-bottom: 4px;">
-                            <label style="width:40px; display:flex; align-items:center; justify-content:flex-end; gap:2px; cursor:pointer; color:#1976D2; font-weight:bold;" title="Check: Continuous Tracking. Uncheck: Simple Fusion Mode.">
-                                <input type="checkbox" id="chk-enable-tracking" style="margin:0; width:10px; height:10px;">
-                                Track
-                            </label>
-                            <span style="font-size:9px; color:#888; flex:1; margin-left:2px;">Target Tracking & Anti-Ghost</span>
-                        </div>
                         <div class="row" title="Backend polling & calculation interval (seconds)">
                             <label style="width:40px">Interval</label>
                             <div class="slider-row">
@@ -273,6 +266,34 @@ export class RadarUI {
                                 <button class="stepper" id="btn-mrg-plus">+</button>
                             </div>
                             <span id="val-merge" style="width:30px; text-align:right">0.8m</span>
+                        </div>
+                        <div class="row" style="justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 4px; margin-bottom: 4px;">
+                            <div style="display:flex; align-items:center; gap:2px;">
+                                <label style="width:40px">Color</label>
+                                <div style="display:flex; align-items:center; background:#111; border:1px solid #333; border-radius:2px; padding:1px; height:18px; box-sizing:border-box;">
+                                    <input type="color" id="set-fused-color" style="width:14px; height:14px; cursor:pointer; padding:0; border:none; background:none;">
+                                    <span id="val-fused-color" style="font-size:9px; padding:0 3px; color:#ccc; text-transform:uppercase;">#FFD700</span>
+                                </div>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:2px;">
+                                <label style="width:25px; text-align:right;">Tgt H</label>
+                                <div class="slider-row" style="flex:none; width:auto;">
+                                    <button class="stepper" id="btn-tgt-minus">-</button>
+                                    <input type="number" id="set-target-input" min="0" max="3.0" step="0.1" style="width:28px; text-align:center; padding:0;">
+                                    <button class="stepper" id="btn-tgt-plus">+</button>
+                                </div>
+                                <span style="font-size:9px; color:#aaa; width:8px;">m</span>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <label style="width:40px; text-align:right; color:#1976D2; font-weight:bold; margin-right:1px;">Track</label>
+                            <input type="checkbox" id="chk-enable-tracking" style="margin:0 2px 0 0; width:13px; height:13px; cursor:pointer;" title="Continuous Tracking vs Simple Mode">
+                            <span style="font-size:9px; color:#888; flex:1; margin-left:2px;">Target Tracking & Anti-Ghost</span>
+                        </div>
+                        <div class="row" id="row-labels" style="border-bottom: 1px solid #333; padding-bottom: 4px; margin-bottom: 4px;">
+                            <label style="width:40px; text-align:right; color:#1976D2; font-weight:bold; margin-right:1px;">Labels</label>
+                            <input type="checkbox" id="chk-show-labels" style="margin:0 2px 0 0; width:13px; height:13px; cursor:pointer;" title="Show Target IDs">
+                            <span style="font-size:9px; color:#888; flex:1; margin-left:2px;">Display Target ID Numbers</span>
                         </div>
                         <div class="row" id="row-ema">
                             <label style="width:40px">Smooth</label>
@@ -330,24 +351,6 @@ export class RadarUI {
                                 <button class="stepper" id="btn-mjs-plus">+</button>
                             </div>
                             <span id="val-mjs" style="width:30px; text-align:right">2.5m/s</span>
-                        </div>
-                        <div class="row" style="justify-content: space-between;">
-                            <div style="display:flex; align-items:center; gap:2px;">
-                                <label style="width:40px">Color</label>
-                                <div style="display:flex; align-items:center; background:#111; border:1px solid #333; border-radius:2px; padding:1px; height:18px; box-sizing:border-box;">
-                                    <input type="color" id="set-fused-color" style="width:14px; height:14px; cursor:pointer; padding:0; border:none; background:none;">
-                                    <span id="val-fused-color" style="font-size:9px; padding:0 3px; color:#ccc; text-transform:uppercase;">#FFD700</span>
-                                </div>
-                            </div>
-                            <div style="display:flex; align-items:center; gap:2px;">
-                                <label style="width:25px; text-align:right;">Tgt H</label>
-                                <div class="slider-row" style="flex:none; width:auto;">
-                                    <button class="stepper" id="btn-tgt-minus">-</button>
-                                    <input type="number" id="set-target-input" min="0" max="3.0" step="0.1" style="width:28px; text-align:center; padding:0;">
-                                    <button class="stepper" id="btn-tgt-plus">+</button>
-                                </div>
-                                <span style="font-size:9px; color:#aaa; width:8px;">m</span>
-                            </div>
                         </div>
                         </div> <!-- ✨ 结束滚动区域 -->
                         <div class="separator" style="margin: 1px 0;"></div>
@@ -644,6 +647,16 @@ export class RadarUI {
                 updateTrackState();
                 if(state.hass) {
                     state.hass.callService('radar_map_manager', 'update_map_config', { map_group: state.mapGroup || "default", enable_tracking: e.target.checked });
+                }
+            };
+        }
+        const chkLabels = this.root.getElementById('chk-show-labels');
+        if (chkLabels) {
+            let isShowLabels = (conf.show_labels !== undefined) ? conf.show_labels : false;
+            if (this.root.activeElement !== chkLabels) chkLabels.checked = isShowLabels;
+            chkLabels.onchange = (e) => {
+                if(state.hass) {
+                    state.hass.callService('radar_map_manager', 'update_map_config', { map_group: state.mapGroup || "default", show_labels: e.target.checked });
                 }
             };
         }

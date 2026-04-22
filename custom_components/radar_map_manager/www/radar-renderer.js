@@ -348,7 +348,7 @@ export class RadarRenderer {
         const globalConfig = (state.data && state.data.global_config) || {};
         const fusedColor = config.fused_color || globalConfig.fused_color || '#FFD700';
         const isTracking = globalConfig.enable_tracking !== false;
-        const showLabels = config.show_labels !== false && isTracking;
+        const showLabels = (globalConfig.show_labels !== undefined ? globalConfig.show_labels : config.show_labels) === true && isTracking;
         const transitionStyle = isTracking ? 'left 0.15s linear, top 0.15s linear, opacity 0.3s, border 0.3s' : 'opacity 0.3s, border 0.3s';
         const globalZones = (state.data && state.data.global_zones) || {};
         const excludeZones = globalZones.exclude_zones || [];

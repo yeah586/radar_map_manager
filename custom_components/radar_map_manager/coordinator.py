@@ -29,6 +29,7 @@ class RadarCoordinator:
                         "hibernation_ttl": 12.0,
                         "enable_verify_rule": True,
                         "enable_tracking": True,
+                        "show_labels": False,
                         "max_jump_base": 1.0,
                         "max_jump_speed": 2.5,
                         "stationary_max_hold": 300.0
