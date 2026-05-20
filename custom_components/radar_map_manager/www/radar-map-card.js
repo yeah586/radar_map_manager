@@ -312,24 +312,41 @@ class RadarMapCardNative extends HTMLElement {
                 mockHass.states[`${prefix}_y`] = { state: smooth_y.toString(), attributes: { unit_of_measurement: 'mm' } };
             });
         }
-        if (this.state.smoothedTargets) {
-            Object.keys(this.state.smoothedTargets).forEach(id => { 
-                if (!currentIds.includes(id)) delete this.state.smoothedTargets[id]; 
-            });
-        }
         if (this.state.fused_targets) {
+            let smoothed_fused = [];
+            let alpha = 0.4;
+            if (this.state.data && this.state.data.global_config && this.state.data.global_config.ema_smoothing_level !== undefined) {
+                alpha = Math.max(0.1, Math.min(1.0, (11 - parseInt(this.state.data.global_config.ema_smoothing_level)) / 10.0));
+            }
+            this.state.fused_targets.forEach(t => {
+                const tid = `fused_${t.id}`;
+                currentIds.push(tid);
+                let smooth_x = t.x;
+                let smooth_y = t.y;
+                if (this.state.smoothedTargets[tid]) {
+                    smooth_x = this.state.smoothedTargets[tid].x * (1 - alpha) + t.x * alpha;
+                    smooth_y = this.state.smoothedTargets[tid].y * (1 - alpha) + t.y * alpha;
+                }
+                this.state.smoothedTargets[tid] = { x: smooth_x, y: smooth_y };
+                smoothed_fused.push({ ...t, x: smooth_x, y: smooth_y });
+            });
             const mapGroup = this.state.mapGroup || "default";
             const safeMap = mapGroup.toLowerCase().replace(/\s+/g, '_');
             const masterId = `sensor.rmm_${safeMap}_master`;
             let masterEnt = mockHass.states[masterId] || { state: '0', attributes: {} };
             mockHass.states[masterId] = {
                 ...masterEnt,
-                state: this.state.fused_targets.length.toString(),
+                state: smoothed_fused.length.toString(),
                 attributes: {
                     ...masterEnt.attributes,
-                    targets: this.state.fused_targets
+                    targets: smoothed_fused
                 }
             };
+        }
+        if (this.state.smoothedTargets) {
+            Object.keys(this.state.smoothedTargets).forEach(id => { 
+                if (!currentIds.includes(id)) delete this.state.smoothedTargets[id]; 
+            });
         }
         this.state.using_ws_targets = anyWsConnected;
         return mockHass;
